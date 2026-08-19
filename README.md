@@ -11,6 +11,30 @@ Recycle Bin. It is just unwilling to be boring about it.
 
 ---
 
+## Screenshots
+
+![The startup sequence](docs/startup.jpg)
+
+*The opening: towers of light rising out of the void, one per drive, each as tall as that
+drive is full. Coloured lights circle the scene while it reads.*
+
+![The main menu](docs/main-menu.jpg)
+
+*The main menu. The ring of orbs turns in 3D — near ones swell and brighten, the far side
+sinks into the black — over a faint wash of surf.*
+
+![Choosing a drive](docs/drives.jpg)
+
+*Every drive is a memory card. The one you are on catches the light.*
+
+![Browsing a drive](docs/browser.jpg)
+
+*Inside a Steam library. Each folder is a save icon wearing the game's own logo, pulled from
+the shell icon already on your machine — and the grid fills in live while the scan is still
+running rather than making you wait for it.*
+
+---
+
 ## What it does
 
 - **Scans your drives** recursively, with live progress — folders appear and fill in as they

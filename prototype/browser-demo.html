@@ -1,0 +1,1635 @@
+<title>PlaySave — prototype</title>
+
+<style>
+/* ============================================================
+   Palette sampled from the reference screenshots, not invented:
+   warm neutral greys, the OSD title gold, the menu-highlight cyan.
+   Single committed world — every color painted explicitly.
+   ============================================================ */
+:root{
+  --ink:#131313;
+  --panel:#1c1c1b;
+  --panel-2:#232322;
+  --edge:#343433;
+  --edge-hot:#4f4f4d;
+  --gold:#ffe14a;
+  --sky:#6fd0ff;
+  --text:#e9e9e5;
+  --dim:#9c9c96;
+  --faint:#6b6b66;
+  --rose:#ff7a86;
+  --leaf:#7ee08a;
+
+  --ui:"Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;
+  --measure:66ch;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ink); color:var(--text);
+  font-family:var(--ui); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.eyebrow{ font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:var(--gold); font-weight:600; margin:0; }
+h1,h2,h3{ text-wrap:balance; font-weight:300; margin:0 }
+h1{ font-size:clamp(2rem,5vw,3.4rem); letter-spacing:-.02em; line-height:1.05 }
+h2{ font-size:clamp(1.45rem,3vw,2.05rem); letter-spacing:-.01em }
+h3{ font-size:1.02rem; font-weight:600 }
+p{ margin:0; max-width:var(--measure) }
+a{ color:var(--sky); text-underline-offset:3px; text-decoration-color:color-mix(in srgb,var(--sky) 40%,transparent) }
+a:hover{ text-decoration-color:var(--sky) }
+strong{ font-weight:600; color:#fff }
+code{ font-family:var(--mono); font-size:.86em; color:var(--gold); background:rgba(255,225,74,.08); padding:.1em .35em; border-radius:2px }
+:focus-visible{ outline:2px solid var(--gold); outline-offset:2px }
+
+/* ============================================================
+   THE SCREEN
+   ============================================================ */
+.tv{
+  max-width:1180px; margin:0 auto;
+  padding:clamp(18px,4vw,40px) clamp(14px,3vw,32px) 0;
+}
+.screen{
+  position:relative; width:100%; aspect-ratio:16/9;
+  max-height:78vh; min-height:380px;
+  border-radius:4px; overflow:hidden;
+  background:#8d8d8d;
+  box-shadow:0 0 0 1px #000, 0 0 0 9px #0c0c0c, 0 26px 70px -24px rgba(0,0,0,.9);
+  user-select:none;
+}
+#stage{ position:absolute; inset:0; width:100%; height:100%; display:block }
+
+.osd{ position:absolute; inset:0; }
+.osd *{ text-shadow:0 2px 3px rgba(0,0,0,.55) }
+
+/* header */
+.osd-head{
+  position:absolute; top:2.6%; left:3%; right:3%;
+  display:flex; justify-content:space-between; gap:20px; align-items:flex-start;
+  pointer-events:none;
+}
+.head-l{ color:#fff }
+.head-card{ font-size:clamp(13px,1.85vw,23px); font-weight:600; letter-spacing:.01em; line-height:1.15 }
+.head-card small{ font-size:.62em; font-weight:600; letter-spacing:.04em }
+.head-free{ font-size:clamp(10px,1.25vw,15px); font-variant-numeric:tabular-nums; opacity:.94 }
+.head-r{
+  text-align:right; color:var(--gold);
+  font-size:clamp(14px,2.15vw,27px); font-weight:600; line-height:1.12;
+  max-width:52%; overflow-wrap:anywhere;
+}
+.head-r .sub{ display:block; color:#fff; font-size:.52em; font-weight:400; font-variant-numeric:tabular-nums; margin-top:.25em; opacity:.92 }
+
+/* icon cells */
+.cells{ position:absolute; inset:0 }
+.cell{
+  position:absolute; transform:translate(-50%,-50%);
+  display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
+  background:none; border:1px solid transparent; border-radius:3px;
+  color:#fff; font:inherit; cursor:pointer; padding:0 2px 2px;
+}
+.cell .cap{
+  font-size:clamp(8px,1.02vw,12px); line-height:1.25; text-align:center;
+  max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  opacity:.94;
+}
+.cell .cap b{ display:block; font-weight:600 }
+.cell .cap i{ font-style:normal; font-variant-numeric:tabular-nums; opacity:.8; font-size:.9em }
+.cell[aria-current="true"] .cap{ color:var(--gold) }
+.cell.dim{ opacity:.42; filter:blur(1.2px) }
+
+/* footer prompts */
+.osd-foot{
+  position:absolute; bottom:3%; left:0; right:0;
+  display:flex; justify-content:center; gap:clamp(14px,3vw,44px);
+  color:#fff; font-size:clamp(11px,1.55vw,20px); font-weight:600;
+  pointer-events:none;
+}
+.osd-foot span{ display:inline-flex; align-items:center; gap:.45em }
+.g{ font-size:1.05em; line-height:1 }
+.g.x{ color:#8fb6ff } .g.o{ color:#ff8a94 } .g.t{ color:#8fe6a0 }
+.scroll-hint{ color:var(--sky); font-size:.8em }
+
+/* options menu */
+.menu{
+  position:absolute; right:6%; top:36%;
+  display:flex; flex-direction:column; align-items:flex-end; gap:.15em;
+}
+.menu button{
+  background:none; border:0; padding:.05em .1em; cursor:pointer;
+  color:#e2e2de; font:inherit; font-size:clamp(17px,2.6vw,34px); font-weight:600;
+  letter-spacing:.01em; line-height:1.25;
+  text-shadow:0 2px 3px rgba(0,0,0,.55);
+}
+.menu button[aria-current="true"]{ color:var(--sky) }
+.menu .ask{ color:#fff; font-size:clamp(12px,1.6vw,20px); font-weight:400; margin-bottom:.3em }
+
+/* boot screen — the void, and whatever rises out of it */
+.boot{
+  position:absolute; inset:0; pointer-events:none;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+  padding-bottom:11%; text-align:center; color:#eaf2ff;
+}
+.boot-name{
+  font-size:clamp(14px,2.3vw,29px); font-weight:300; text-transform:uppercase;
+  letter-spacing:.42em; text-indent:.42em;
+}
+.boot-sub{ font-size:clamp(10px,1.3vw,16px); color:#93a9cc; margin-top:.85em; letter-spacing:.05em }
+.boot-sub b{ color:#eaf2ff; font-weight:600 }
+.boot-count{
+  font-family:var(--mono); font-size:clamp(11px,1.45vw,18px); color:var(--sky);
+  margin-top:.3em; font-variant-numeric:tabular-nums;
+}
+.boot-empty{
+  position:absolute; top:46%; left:0; right:0;
+  font-size:clamp(11px,1.5vw,19px); letter-spacing:.34em; color:#4a5a72;
+}
+.linkbtn{
+  background:none; border:0; padding:0; cursor:pointer; font:inherit; font-size:13px;
+  color:var(--sky); text-decoration:underline; text-underline-offset:3px;
+}
+
+/* details screen */
+.info{
+  position:absolute; inset:0; display:grid; place-content:center;
+  padding:0 6%; color:#fff;
+}
+.info-title{
+  display:grid; grid-template-columns:auto 1fr; gap:clamp(10px,2vw,26px); align-items:center;
+  margin-bottom:clamp(10px,2.2vw,26px);
+}
+.info-title .thumb{
+  width:clamp(26px,3.6vw,46px); height:clamp(36px,5vw,64px); border-radius:2px;
+  background:linear-gradient(160deg,#5a5a5a,#1e1e1e); box-shadow:inset 0 1px 0 rgba(255,255,255,.22);
+}
+.info-title h4{
+  margin:0; color:var(--gold); font-weight:600; line-height:1.1;
+  font-size:clamp(16px,2.7vw,34px);
+}
+.info dl{
+  margin:0; display:grid; grid-template-columns:auto 1fr;
+  gap:clamp(3px,.7vw,9px) clamp(12px,2.4vw,30px);
+  font-size:clamp(11px,1.72vw,22px);
+}
+.info dt{ text-align:right; color:#c9c9c4 }
+.info dd{ margin:0; color:#fff; font-variant-numeric:tabular-nums; overflow-wrap:anywhere }
+
+.caption{
+  max-width:1180px; margin:14px auto 0; padding:0 clamp(14px,3vw,32px);
+  color:var(--dim); font-size:13px; display:flex; gap:16px; flex-wrap:wrap;
+}
+.caption b{ color:var(--text); font-weight:600 }
+
+/* ============================================================
+   DOCUMENT
+   ============================================================ */
+main{
+  max-width:1180px; margin:0 auto;
+  padding:clamp(44px,7vw,86px) clamp(18px,4vw,40px) 120px;
+  display:flex; flex-direction:column; gap:clamp(46px,7vw,82px);
+}
+.lede{ display:flex; flex-direction:column; gap:16px }
+.lede h1{ text-shadow:0 0 46px rgba(255,225,74,.14) }
+.lede p{ font-size:17px; color:var(--dim) }
+section{ display:flex; flex-direction:column; gap:18px }
+.sec-head{ display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--edge); padding-top:18px }
+
+.cols{ display:grid; grid-template-columns:repeat(auto-fit,minmax(255px,1fr)); gap:18px }
+.card{
+  border:1px solid var(--edge); border-radius:3px;
+  background:linear-gradient(180deg,var(--panel-2),var(--panel));
+  padding:17px; display:flex; flex-direction:column; gap:8px;
+}
+.card h3{ color:#fff }
+.card p{ font-size:14px; color:var(--dim) }
+.card .tag{ font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold) }
+
+.callout{
+  border:1px solid var(--edge-hot); border-radius:3px;
+  background:linear-gradient(180deg,rgba(255,225,74,.07),rgba(255,225,74,.015));
+  padding:20px 22px; display:flex; flex-direction:column; gap:10px;
+}
+.callout p{ font-size:15px }
+
+.tbl{ overflow-x:auto; border:1px solid var(--edge); border-radius:3px }
+table{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:520px }
+th,td{ text-align:left; padding:9px 14px; border-bottom:1px solid #2b2b2a; vertical-align:top }
+thead th{
+  font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--gold);
+  font-weight:600; background:rgba(255,225,74,.045); white-space:nowrap;
+}
+tbody tr:last-child td{ border-bottom:none }
+tbody tr:hover{ background:rgba(255,255,255,.025) }
+td.num,th.num{ font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap; color:var(--sky) }
+td.f{ font-family:var(--mono); font-size:12.5px }
+
+ol.phases{ list-style:none; counter-reset:p; margin:0; padding:0; display:flex; flex-direction:column }
+ol.phases li{
+  counter-increment:p; display:grid; grid-template-columns:50px 1fr; gap:16px;
+  padding:13px 14px; border-bottom:1px solid #2b2b2a;
+}
+ol.phases li:last-child{ border-bottom:none }
+ol.phases li::before{ content:counter(p,decimal-leading-zero); font-family:var(--mono); font-size:12px; color:var(--gold) }
+ol.phases b{ display:block; font-weight:600; font-size:14.5px; color:#fff }
+ol.phases span{ font-size:13.5px; color:var(--dim) }
+
+ul.plain{ margin:0; padding:0 0 0 1.1em; display:flex; flex-direction:column; gap:9px }
+ul.plain li{ font-size:14.5px; color:var(--dim); max-width:var(--measure) }
+ul.plain li b{ color:var(--text); font-weight:600 }
+
+footer{ border-top:1px solid var(--edge); padding-top:22px; display:flex; flex-direction:column; gap:10px }
+footer .src{ display:flex; flex-wrap:wrap; gap:8px 18px; font-size:12.5px }
+footer .src a{ color:var(--dim) }
+footer .src a:hover{ color:var(--sky) }
+
+@media (prefers-reduced-motion:reduce){ *{ animation-duration:.01ms !important; transition-duration:.01ms !important } }
+</style>
+
+<div class="tv">
+  <div class="screen" id="screen">
+    <canvas id="stage" aria-hidden="true"></canvas>
+    <div class="osd" id="osd"></div>
+  </div>
+  <div class="caption">
+    <span><b>Live prototype.</b> Click a card to enter it.</span>
+    <span><b>✕</b> Enter · <b>◯</b> Back · <b>△</b> Options</span>
+    <span>Arrow keys, Enter and Esc work too.</span>
+    <button class="linkbtn" id="replay">Replay startup</button>
+    <button class="linkbtn" id="snd" aria-pressed="false">Sound off</button>
+  </div>
+</div>
+
+<main>
+
+  <div class="lede">
+    <p class="eyebrow">Design research · rebuilt against reference · August 2026</p>
+    <h1>Disk&nbsp;Explorer, but PS2 Save&nbsp;File</h1>
+    <p>A disk-usage analyzer that presents drives as memory cards and folders as animated save icons. Delete one and it plays its own death animation — because on the PS2, it always did.</p>
+  </div>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Corrected from screenshots</p>
+      <h2>The browser is silver, not blue</h2>
+    </div>
+    <p>Nearly every written source describes the PS2's system UI as dark blue. That's the boot screen. The <em>Browser</em> — the part with your saves in it — sits on a <strong>light silver-grey ground with soft concentric ripples</strong>, and the grid view is a smooth grey gradient lit from one side. Getting this wrong makes everything downstream feel like a different console.</p>
+    <div class="cols">
+      <div class="card">
+        <span class="tag">Selection</span>
+        <h3>A light, not a box</h3>
+        <p>The highlighted icon has a hard specular bloom behind it — an actual light source in the scene. No cursor, no border, no fill. That bloom is the entire selection affordance.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Typography</span>
+        <h3>Gold, top right</h3>
+        <p>The selected save's name is set large in a saturated golden yellow, right-aligned in the top corner. Card name and free space sit opposite it in white. Everything carries a soft drop shadow so it survives on any backdrop.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Options</span>
+        <h3>A real focus pull</h3>
+        <p>Opening Copy/Delete defocuses every other icon and holds the selected one sharp. Not a dim overlay — a depth-of-field blur, with the background already repainted in that save's own colors.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Free space</span>
+        <h3>Counted in KB</h3>
+        <p><code>2,138 KB Free</code>, comma-grouped, directly under the card name. Carried over literally, a modern drive reads <code>1,952,741,376 KB Free</code> — absurd, and worth keeping.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">The flow</p>
+      <h2>Four screens, and what each becomes</h2>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>PS2 screen</th><th>What's on it</th><th>Our app</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Device select</strong></td><td>One 3D memory-card model per slot, side by side on the rippled silver ground. The card in the active slot catches the light; the other stays matte black.</td><td>One card per drive. Two drives sit in two slots, exactly as they did.</td></tr>
+          <tr><td><strong>Card contents</strong></td><td>A grid of save icons, all animating at once. Card name and free space top-left, selected save's name in gold top-right, a cyan ▼ when the grid scrolls.</td><td>Folders as icons, sorted by size, with the size as a caption the PS2 never needed.</td></tr>
+          <tr><td><strong>Options</strong> (△)</td><td>Everything defocuses, the background takes the save's colors, and <em>Copy</em> / <em>Delete</em> stack at the right with the highlight in cyan. Header gains the save's timestamp and KB size.</td><td>Copy to the other drive; delete to the Recycle Bin. Both play their own icon animation.</td></tr>
+          <tr><td><strong>Details</strong> (✕)</td><td>Location, File Type, File Size, Last Updated, File Protection — right-aligned labels against left-aligned values, on a dark grey ground.</td><td>A properties panel that already has its layout designed. Path, kind, size on disk, modified, attributes.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The two western screenshots read <code>✕ Enter · ◯ Back · △ Options</code>; the Japanese console swaps ✕ and ◯, which is worth honoring as a regional setting rather than hardcoding.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">The mechanic</p>
+      <h2>Three icons per save</h2>
+    </div>
+    <div class="callout">
+      <p>Each save's metadata names <strong>three</strong> separate model files: one for browsing, one that plays <strong>while it's being copied</strong>, and one that plays <strong>while it's being deleted</strong>.</p>
+      <p>Most studios shipped the same model three times. The ones who cared made the delete animation the character dissolving, exploding, or waving goodbye — a small farewell nobody was obligated to build.</p>
+      <p><strong>That's the pitch.</strong> A disk cleaner where the folder you're about to delete visibly reacts is a thing nobody has made, and the format that inspired it hands you the structure for free. Open <em>Options → Delete</em> up top.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Why they look like that</p>
+      <h2>The constraints are the art style</h2>
+    </div>
+    <p>Unforgiving in ways that turn out to be a gift: they make hand-authoring a full icon set realistic for one person.</p>
+    <div class="cols">
+      <div class="card"><span class="tag">Geometry</span><h3>~500 triangles</h3><p>A raw, non-indexed triangle list. No index buffer, no skeleton.</p></div>
+      <div class="card"><span class="tag">Texture</span><h3>128 × 128, 16-bit</h3><p><code>A1B5G5R5</code> — one alpha bit, five bits per channel, optionally RLE-compressed.</p></div>
+      <div class="card"><span class="tag">Animation</span><h3>Vertex morphing</h3><p>Whole-mesh snapshots called <em>shapes</em>, blended by a tween factor. Exactly glTF morph targets.</p></div>
+      <div class="card"><span class="tag">Lighting</span><h3>Three lights + ambient</h3><p>Stored per save. <code>(ambient + Σ max(dot(N,L),0)) × texture</code>. That's the whole shader.</p></div>
+    </div>
+    <p>Look at the reference grid: a rock, a skateboard, a soda can, a Sonic head, a dragon, two golf balls. No house style, no size rule, no shared silhouette — every studio interpreted the box differently, and the resulting jumble is most of the charm. Normals also don't morph with position, so deforming icons light slightly wrong. Keep that bug; it's free character.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Reference</p>
+      <h2>icon.sys — always exactly 964 bytes</h2>
+    </div>
+    <p>The per-save metadata. The four corner colors are the background gradient — the single most transferable idea in the format, and visibly at work when the reference screen turns olive for a Crash save.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th class="num">Offset</th><th class="num">Size</th><th>Field</th></tr></thead>
+        <tbody>
+          <tr><td class="num">0</td><td class="num">4</td><td class="f">Magic <code>"PS2D"</code></td></tr>
+          <tr><td class="num">6</td><td class="num">2</td><td class="f">Second-line offset into title</td></tr>
+          <tr><td class="num">12</td><td class="num">4</td><td class="f">Background transparency (0x00 → 0x80)</td></tr>
+          <tr><td class="num">16</td><td class="num">16</td><td class="f">Background color — upper-left (4 × uint32 RGBA)</td></tr>
+          <tr><td class="num">32</td><td class="num">16</td><td class="f">Background color — upper-right</td></tr>
+          <tr><td class="num">48</td><td class="num">16</td><td class="f">Background color — lower-left</td></tr>
+          <tr><td class="num">64</td><td class="num">16</td><td class="f">Background color — lower-right</td></tr>
+          <tr><td class="num">80–127</td><td class="num">48</td><td class="f">Light 1–3 direction vectors</td></tr>
+          <tr><td class="num">128–175</td><td class="num">48</td><td class="f">Light 1–3 RGB</td></tr>
+          <tr><td class="num">176</td><td class="num">16</td><td class="f">Ambient RGB</td></tr>
+          <tr><td class="num">192</td><td class="num">68</td><td class="f">Title, null-terminated, Shift-JIS</td></tr>
+          <tr><td class="num">260</td><td class="num">64</td><td class="f">Normal icon filename</td></tr>
+          <tr><td class="num">324</td><td class="num">64</td><td class="f">Copy icon filename</td></tr>
+          <tr><td class="num">388</td><td class="num">64</td><td class="f">Delete icon filename</td></tr>
+          <tr><td class="num">452</td><td class="num">512</td><td class="f">Reserved</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The <code>.ico</code> model is a 20-byte header (magic <code>0x010000</code>, shape count, texture flags, constant <code>0x3F800000</code>, vertex count), then per vertex: one position <em>per shape</em> (int16 ÷ 4096), one normal, one UV, one RGBA.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">The translation</p>
+      <h2>Filesystem → memory card</h2>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>PS2</th><th>Our app</th></tr></thead>
+        <tbody>
+          <tr><td>Memory card in a slot</td><td>A drive, in a slot.</td></tr>
+          <tr><td><code>2,138 KB Free</code></td><td>The same line, same units, absurd magnitude.</td></tr>
+          <tr><td>A save on the card</td><td>A directory on disk.</td></tr>
+          <tr><td>Save title, two lines</td><td>Folder name and path — the format literally supports the break.</td></tr>
+          <tr><td>Four corner colors</td><td>Derived per folder from its dominant content type.</td></tr>
+          <tr><td>Specular bloom on selection</td><td>Kept exactly. It's better than any highlight box.</td></tr>
+          <tr><td>Details screen</td><td>File properties, same label/value layout.</td></tr>
+          <tr><td><strong>Copy</strong></td><td>A real copy to the other card — the other drive.</td></tr>
+          <tr><td><strong>Delete</strong></td><td>A real delete to the Recycle Bin, delete animation playing.</td></tr>
+          <tr><td>Boot-screen towers</td><td><strong>The scan progress screen.</strong> Each top-level folder grows a tower as bytes are counted — a progress bar and the payoff shot at once.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Two deliberate departures. <strong>Sort by size, descending</strong> — the PS2 didn't sort, but "what's eating my disk" is the whole job. And <strong>caption every icon with its size</strong>, which the original never needed to do.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Build</p>
+      <h2>A Rust scanner and a WebGL face</h2>
+    </div>
+    <div class="cols">
+      <div class="card">
+        <span class="tag">Scanner · Rust</span>
+        <h3>Read the MFT, not the tree</h3>
+        <p>On NTFS the Master File Table already holds every name, size and parent reference — parse it and rebuild the tree in memory instead of walking directories. This is how WizTree scans a terabyte in seconds. Needs Administrator, so ship a threaded <code>FindFirstFileEx</code> fallback and sell speed as an opt-in rather than a UAC wall at launch.</p>
+      </div>
+      <div class="card">
+        <span class="tag">UI · Tauri v2 + WebGL</span>
+        <h3>The Rust core is already there</h3>
+        <p>Morph targets, per-save gradients and bloom are one-liners in a web stack, and the scanner becomes a command in the same binary. Ships at a few MB. Electron if you want byte-identical Chromium; Godot 4 if you'd rather live in an engine, but the scanner is Rust either way.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Look</span>
+        <h3>Point-sample everything</h3>
+        <p>No texture filtering. Render at ~640×448 and upscale. Subtle vertex snapping, because PS2 fixed-point math made geometry shimmer. Skip affine texture warping — that's PS1, and getting it wrong is the tell.</p>
+      </div>
+      <div class="card">
+        <span class="tag">Assets</span>
+        <h3>Blender → glTF shape keys</h3>
+        <p>glTF morph targets map onto PS2 shapes one-to-one. Three clips per icon: <em>idle</em>, <em>copy</em>, <em>delete</em>. Roughly thirty icons covers a drive.</p>
+      </div>
+    </div>
+    <p>The BIOS font is a bitmap font in ROM (<code>rom0:FONTM</code>) and the BIOS audio is Sony's — don't ship either. A lookalike face plus a synthesized blip carries the atmosphere. Same rule for the well-known Shadertoy PS2 background: read it for technique, write your own, it's CC BY-NC-SA.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">The feature that sells it</p>
+      <h2>Import a real memory card</h2>
+    </div>
+    <p>Let people drop in an actual <code>.ps2</code> card image, <code>.psu</code>, or <code>.max</code> save and use those icons for their folders. The parsers are open source and PS2IODB is a ready-made asset library for anyone without a card in a drawer. <code>node_modules</code> rendered as a save icon from a 2003 platformer is the screenshot that makes this spread. Ship the parser, not the assets.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Sequence</p>
+      <h2>Roadmap</h2>
+    </div>
+    <ol class="phases">
+      <li><div><b>Spike</b><span>Rippled silver ground, morphing icons, the four-screen flow. Roughly what's running at the top of this page.</span></div></li>
+      <li><div><b>Scanner</b><span>Rust CLI: scan a volume, emit a JSON tree, validate totals against WizTree.</span></div></li>
+      <li><div><b>Card view</b><span>One drive, one card. Real folders on the grid, sorted by size.</span></div></li>
+      <li><div><b>Navigation</b><span>Drill down, breadcrumbs, per-folder palettes, the details screen wired to real metadata.</span></div></li>
+      <li><div><b>Actions</b><span>Copy and Delete, three-state animations, confirmation.</span></div></li>
+      <li><div><b>Multi-card</b><span>Every drive as a card, copy between cards.</span></div></li>
+      <li><div><b>Boot screen</b><span>The tower scan-progress screen.</span></div></li>
+      <li><div><b>Polish</b><span>Sound, CRT toggle, real PS2 icon import.</span></div></li>
+      <li><div><b>macOS</b><span><code>getattrlistbulk</code> backend. APFS takes a global lock on directory reads, so a naive thread pool gets slower.</span></div></li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Traps</p>
+      <h2>What makes disk analyzers wrong</h2>
+    </div>
+    <ul class="plain">
+      <li><b>Logical size vs size on disk.</b> Round to cluster size or the totals drift.</li>
+      <li><b>Hardlinks.</b> Dedupe by file ID or you count the same bytes repeatedly.</li>
+      <li><b>Sparse files.</b> A 1 GB sparse file can occupy 64 KB.</li>
+      <li><b>Reparse points, junctions, symlinks.</b> Don't follow, don't double-count.</li>
+      <li><b>Cloud placeholders.</b> OneDrive and iCloud files that aren't local — touching them can trigger multi-gigabyte downloads.</li>
+      <li><b>Long paths.</b> Use the <code>\\?\</code> prefix or enable long-path support.</li>
+      <li><b>This app deletes files.</b> Recycle Bin by default, explicit confirmation — the PS2 asked too — system paths hard-blocked, and the delete animation never starts before the operation is authorized.</li>
+      <li><b>Scale mismatch.</b> An 8 MB card held about thirty saves. A 2 TB drive holds millions of files.</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p class="eyebrow">Sources</p>
+    <div class="src">
+      <a href="https://www.ps2savetools.com/documents/iconsys-format/">icon.sys format spec</a>
+      <a href="https://babyno.top/en/posts/2023/10/parsing-ps2-3d-icon/">Parsing PS2 3D icons</a>
+      <a href="https://babyno.top/en/posts/2023/12/ps2mc-browsers-shader-introduction/">ps2mc-browser shader analysis</a>
+      <a href="https://babyno.top/en/posts/2023/10/ps2-texture-encoding-algorithm-a1b5g5r5/">A1B5G5R5 encoding</a>
+      <a href="https://github.com/caol64/ps2mc-browser">ps2mc-browser</a>
+      <a href="https://github.com/Issung/PS2IODB">PS2IODB</a>
+      <a href="https://github.com/ps2dev/mymc">mymc</a>
+      <a href="https://github.com/BAD-AL/mymc_web">mymc_web</a>
+      <a href="https://kotaku.com/memory-card-icons-were-rad-1835331018">Memory Card Icons Were Rad</a>
+      <a href="https://www.ps2-home.com/forum/viewtopic.php?t=1668">PS2-HOME: the boot towers</a>
+      <a href="https://diskanalyzer.com/">WizTree</a>
+      <a href="https://crates.io/crates/ntfs-reader">ntfs-reader</a>
+      <a href="https://manuals.jam-software.com/treesize/EN/notesonntfs.html">Notes on NTFS</a>
+      <a href="http://blog.tempel.org/2019/04/dir-read-performance.html">macOS directory read performance</a>
+    </div>
+  </footer>
+</main>
+
+<script>
+(() => {
+"use strict";
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------------- data ---------------- */
+const hex = h => [parseInt(h.slice(1,3),16)/255, parseInt(h.slice(3,5),16)/255, parseInt(h.slice(5,7),16)/255];
+
+// silver ground, sampled from the device-select screenshot
+const SILVER = ["#b9b9b7","#9d9d9b","#6f6f6d","#8a8a88"];
+const VOID   = ["#0c1730","#0a1226","#02040c","#050a16"];   // dark blue mist
+
+const CARDS = [
+  { id:"C", slot:1, name:"Local Disk", vol:"C:", kind:"NVMe SSD", mesh:"ssd", capKB: 976_224_256,
+    saves:[
+      {n:"node_modules", p:"C:\\Users\\you\\dev", kb: 64_277_708, mesh:"m2", glyph:"pkg",  tint:"#79d98a", when:"07/22/2026  11:04:38 PM", bg:["#93a58f","#7f9a7c","#3f4c3e","#5c6d59"]},
+      {n:"Windows",      p:"C:\\",               kb: 40_265_318, mesh:"hdd", glyph:"win", tint:"#8fb6ff", when:"08/02/2026  6:12:01 AM",  bg:["#a8b4c6","#8f9fb6","#454f60","#65707f"]},
+      {n:"AppData",      p:"C:\\Users\\you",     kb: 33_237_831, mesh:"ssd", glyph:"gear", tint:"#b6b6c2", when:"08/11/2026  9:47:52 PM",  bg:["#adadad","#949494","#494949","#6b6b6b"]},
+      {n:"Program Files",p:"C:\\",               kb: 29_255_270, mesh:"ssd", glyph:"app", tint:"#8fd8ef", when:"07/30/2026  3:22:10 PM",  bg:["#9fbcc4","#86a5ae","#3e5157","#5d7078"]},
+      {n:"Videos",       p:"C:\\Users\\you",     kb: 23_173_529, mesh:"disc", glyph:"play", tint:"#bb96ff", when:"08/09/2026  1:15:44 AM",  bg:["#a89ec2","#8f84ad","#463f5c","#655d7c"]},
+      {n:"Downloads",    p:"C:\\Users\\you",     kb: 19_503_513, mesh:"usb", glyph:"down", tint:"#6fdcd6", when:"08/12/2026  8:30:19 PM",  bg:["#96bdba","#7ea5a2","#3a5250","#587170"]},
+      {n:"Blender",      p:"C:\\Users\\you\\3D", kb: 10_276_044, mesh:"m2", glyph:"blend",  tint:"#ffa057", when:"08/06/2026  10:58:03 PM", bg:["#c4a68d","#ab8d74","#57453a","#776454"]},
+      {n:"Documents",    p:"C:\\Users\\you",     kb:  4_404_019, mesh:"floppy", glyph:"doc", tint:"#e0d3ae", when:"08/13/2026  7:41:27 AM",  bg:["#c2bda6","#a9a38d","#565044","#767063"]}
+    ]},
+  { id:"D", slot:2, name:"Games Drive", vol:"D:", kind:"7200 RPM HDD", mesh:"hdd", capKB: 1_953_514_584,
+    saves:[
+      {n:"SteamLibrary", p:"D:\\",    kb: 432_691_712, mesh:"hdd", glyph:"steam", tint:"#8fb6dd", when:"08/10/2026  5:09:55 PM", bg:["#9fb0c2","#8697aa","#3e4a57","#5c6a78"]},
+      {n:"Emulation",    p:"D:\\",    kb: 252_575_846, mesh:"disc", glyph:"pad",  tint:"#f28fd4", when:"08/01/2026  2:33:12 AM", bg:["#bd9cb8","#a483a0","#553f52","#755d72"]},
+      {n:"Recordings",   p:"D:\\OBS", kb: 139_889_868, mesh:"hdd", glyph:"rec", tint:"#ffbe5c", when:"08/12/2026  11:52:40 PM",bg:["#c8b087","#af976f","#584a35","#78684f"]},
+      {n:"Epic Games",   p:"D:\\",    kb:  92_594_995, mesh:"disc", glyph:"app", tint:"#6fe0bd", when:"07/18/2026  6:47:29 PM", bg:["#93c0b3","#7aa79a","#38524a","#567069"]},
+      {n:"Backups",      p:"D:\\",    kb:  64_801_996, mesh:"floppy", glyph:"clock", tint:"#cddb6f", when:"08/03/2026  4:05:13 AM", bg:["#bcc292","#a3a97a","#52573b","#727756"]}
+    ]}
+];
+CARDS.forEach(c => c.saves.forEach(s => { s.bg = s.bg.map(h => /^#[0-9a-f]{6}$/i.test(h) ? h : "#8a8a88"); }));
+
+const comma = n => Math.round(n).toLocaleString("en-US");
+const human = kb => kb >= 1048576 ? (kb/1048576).toFixed(2)+" GB" : kb >= 1024 ? (kb/1024).toFixed(1)+" MB" : kb+" KB";
+
+const S = { screen:"boot", card:0, sel:0, menu:0, confirm:false,
+            live: CARDS.map(c => c.saves.slice()) };
+const BOOT_DUR = 5.2;
+let bootT = 0;
+const list = () => S.live[S.card];
+const cur  = () => list()[Math.min(S.sel, list().length-1)] || null;
+const usedKB = i => S.live[i].reduce((a,s) => a+s.kb, 0);
+
+/* ---------------- OSD (DOM over the canvas) ---------------- */
+const osd = document.getElementById("osd");
+const screenEl = document.getElementById("screen");
+let cellEls = [];
+
+const glyph = (g,c,label) => `<span><b class="g ${c}">${g}</b>${label}</span>`;
+
+function draw(){
+  const c = CARDS[S.card];
+  if(S.screen === "boot"){
+    // No card, or a card with nothing on it, gets no towers — just the void.
+    osd.innerHTML =
+      `<div class="boot">
+         <div class="boot-name">PlaySave</div>
+         <div class="boot-sub">Reading <b class="drv"></b></div>
+         <div class="boot-count" id="bootCount">0 KB</div>
+         ${list().length ? "" : `<div class="boot-empty">No Data</div>`}
+       </div>
+       <div class="osd-foot">${glyph("✕","x","Skip")}</div>`;
+    osd.querySelector(".drv").textContent = c.name;
+    return;
+  }
+  if(S.screen === "devices"){
+    osd.innerHTML =
+      `<div class="osd-head"><div class="head-l"><div class="head-card">This PC</div></div>
+        <div class="head-r"><span class="ttl"></span></div></div>
+       <div class="cells" id="cells"></div>
+       <div class="osd-foot">${glyph("✕","x","Enter")}${glyph("◯","o","Back")}</div>`;
+  } else if(S.screen === "details"){
+    const s = cur();
+    osd.innerHTML =
+      `<div class="info">
+         <div class="info-title"><div class="thumb"></div><h4></h4></div>
+         <dl>
+           <dt>Location</dt><dd>Memory Card <small>(PS2)</small>/${c.slot}</dd>
+           <dt>File Type</dt><dd>Saved Data (Directory)</dd>
+           <dt>File Size</dt><dd>${comma(s.kb)} KB</dd>
+           <dt>Last Updated</dt><dd>${s.when}</dd>
+           <dt>File Protection</dt><dd>None</dd>
+         </dl>
+       </div>
+       <div class="osd-foot">${glyph("◯","o","Back")}</div>`;
+    osd.querySelector("h4").textContent = s.n;
+    osd.querySelector("dl dd").textContent = s.p + "\\" + s.n;
+  } else {
+    const s = cur();
+    const freeKB = c.capKB - usedKB(S.card);
+    const opts = S.screen === "options";
+    osd.innerHTML =
+      `<div class="osd-head">
+         <div class="head-l">
+           <div class="head-card">${c.name} <small>(${c.vol})</small>/${c.slot}</div>
+           <div class="head-free">${comma(freeKB)} KB Free</div>
+         </div>
+         <div class="head-r"><span class="ttl"></span>${
+           opts && s ? `<span class="sub">${s.when}<br>${comma(s.kb)} KB</span>` : ""}</div>
+       </div>
+       <div class="cells" id="cells"></div>
+       ${opts ? menuHTML() : ""}
+       <div class="osd-foot">${
+         opts ? glyph("✕","x","Enter") + glyph("◯","o","Back")
+              : glyph("✕","x","Enter") + `<span class="scroll-hint">▼</span>` +
+                glyph("◯","o","Back") + glyph("△","t","Options")}</div>`;
+    osd.querySelector(".ttl").textContent = s ? s.n : "No Data";
+  }
+  buildCells();
+  wire();
+}
+
+function menuHTML(){
+  const items = S.confirm ? ["Yes","No"] : ["Copy","Delete"];
+  return `<div class="menu">${S.confirm ? `<div class="ask">Delete this data?</div>` : ""}` +
+    items.map((t,i) => `<button data-menu="${i}" aria-current="${i===S.menu}">${t}</button>`).join("") +
+    `</div>`;
+}
+
+/* grid geometry — shared by the canvas and the DOM cells */
+function layout(){
+  if(S.screen === "devices"){
+    return CARDS.map((_,i) => ({ ndc:[i ? 0.30 : -0.30, 0.02], cell:[0.30,0.40], scale:0.50 }));
+  }
+  const n = list().length;
+  const cols = Math.min(5, Math.max(3, Math.ceil(Math.sqrt(n*1.7))));
+  const rows = Math.ceil(n/cols);
+  return list().map((_,i) => {
+    const r = Math.floor(i/cols), cc = i%cols;
+    const x = ((cc+0.5)/cols*2-1) * 0.80;
+    const y = -(((r+0.5)/rows*2-1)) * 0.46 - 0.03;
+    return { ndc:[x,y], cell:[1.6/cols*0.80, 0.92/rows*0.46], scale: Math.min(1.7/cols, 1.0/rows)*0.55 };
+  });
+}
+
+function buildCells(){
+  const host = osd.querySelector("#cells");
+  cellEls = [];
+  if(!host) return;
+  const L = layout();
+  const items = S.screen === "devices" ? CARDS : list();
+  items.forEach((it,i) => {
+    const g = L[i];
+    const b = document.createElement("button");
+    b.className = "cell" + (S.screen === "options" && i !== S.sel ? " dim" : "");
+    b.style.left = ((g.ndc[0]+1)/2*100) + "%";
+    b.style.top  = ((1-g.ndc[1])/2*100) + "%";
+    b.style.width  = (g.cell[0]*100) + "%";
+    b.style.height = (g.cell[1]*100) + "%";
+    b.setAttribute("aria-current", String(i === (S.screen==="devices" ? S.card : S.sel)));
+    const name = S.screen === "devices" ? it.name : it.n;
+    const meta = S.screen === "devices" ? it.kind : human(it.kb);
+    b.innerHTML = `<span class="cap"><b></b><i>${meta}</i></span>`;
+    b.querySelector("b").textContent = name;
+    // hover selects, click commits — the cursor is the cursor
+    b.onpointerenter = () => {
+      if(S.screen === "devices" && S.card !== i){ S.card = i; S.sel = 0; syncSel(); Sound.move(); }
+      else if(S.screen === "contents" && S.sel !== i){ S.sel = i; syncSel(); Sound.move(); }
+    };
+    b.onclick = () => {
+      if(S.screen === "devices"){ S.card = i; S.sel = 0; S.screen = "contents"; Sound.enter(); }
+      else if(S.screen === "options"){ return; }
+      else { S.sel = i; S.screen = "options"; S.menu = 0; S.confirm = false; Sound.enter(); }
+      draw();
+    };
+    host.appendChild(b);
+    cellEls.push(b);
+  });
+}
+
+/* Update the selection in place. This is a PC app: the mouse moves constantly,
+   so hovering must not rebuild the DOM under the cursor — flip attributes and
+   retarget text instead. palette() reads S every frame, so the bloom, the
+   background and the icon's pose all follow on their own. */
+function syncSel(){
+  const c = CARDS[S.card];
+  const selIdx = S.screen === "devices" ? S.card : S.sel;
+  cellEls.forEach((b,i) => {
+    b.setAttribute("aria-current", String(i === selIdx));
+    if(S.screen === "options") b.classList.toggle("dim", i !== selIdx);
+  });
+  const t = osd.querySelector(".ttl");
+  if(t){
+    if(S.screen === "devices") t.innerHTML = c.name + ' <small>(' + c.vol + ')</small>/' + c.slot;
+    else { const s = cur(); t.textContent = s ? s.n : "No Data"; }
+  }
+  const sub = osd.querySelector(".head-r .sub"), s = cur();
+  if(sub && s) sub.innerHTML = s.when + "<br>" + comma(s.kb) + " KB";
+  osd.querySelectorAll("[data-menu]").forEach(b =>
+    b.setAttribute("aria-current", String(+b.dataset.menu === S.menu)));
+}
+
+function wire(){
+  osd.querySelectorAll("[data-menu]").forEach(b => {
+    b.onclick = () => { S.menu = +b.dataset.menu; choose(); };
+    // hovering Delete is what makes the icon start pleading
+    b.onpointerenter = () => {
+      const m = +b.dataset.menu;
+      if(S.menu !== m){ S.menu = m; syncSel(); Sound.move(); }
+    };
+  });
+  syncSel();
+}
+
+function choose(){
+  if(S.confirm){
+    if(S.menu === 0){ startDelete(); Sound.erase(); }
+    else { S.confirm = false; S.menu = 0; draw(); Sound.back(); }
+    return;
+  }
+  if(S.menu === 0){ startCopy(); Sound.enter(); }
+  else { S.confirm = true; S.menu = 1; draw(); Sound.enter(); }  // default to "No", like the console
+}
+
+function back(){
+  if(S.screen === "options"){ if(S.confirm){ S.confirm = false; S.menu = 0; } else S.screen = "contents"; }
+  else if(S.screen === "details") S.screen = "contents";
+  else if(S.screen === "contents") S.screen = "devices";
+  draw(); Sound.back();
+}
+
+function skipBoot(){ if(S.screen !== "boot") return false; bootT = 0; S.screen = "devices"; draw(); Sound.enter(); return true; }
+screenEl.addEventListener("pointerdown", e => { if(skipBoot()) e.preventDefault(); });
+document.getElementById("replay").onclick = () => { bootT = 0; S.screen = "boot"; draw(); Sound.boot(); };
+
+const sndBtn = document.getElementById("snd");
+sndBtn.onclick = () => {
+  Sound.on = !Sound.on;
+  if(Sound.on){ Sound.init(); if(Sound.ctx && Sound.ctx.state === "suspended") Sound.ctx.resume(); }
+  sndBtn.textContent = Sound.on ? "Sound on" : "Sound off";
+  sndBtn.setAttribute("aria-pressed", String(Sound.on));
+  if(Sound.on && S.screen === "boot") Sound.boot();
+};
+
+addEventListener("keydown", e => {
+  if(skipBoot()){ e.preventDefault(); return; }
+  const inMenu = S.screen === "options";
+  const n = S.screen === "devices" ? CARDS.length : list().length;
+  if(e.key === "Escape"){ back(); e.preventDefault(); return; }
+  if(e.key === "Enter" || e.key === " "){
+    if(inMenu) choose();
+    else if(S.screen === "devices"){ S.sel = 0; S.screen = "contents"; draw(); Sound.enter(); }
+    else if(S.screen === "contents" && cur()){ S.screen = "details"; draw(); Sound.enter(); }
+    e.preventDefault(); return;
+  }
+  if(e.key === "o" && S.screen === "contents" && cur()){
+    S.screen = "options"; S.menu = 0; S.confirm = false; draw(); Sound.enter(); return; }
+  const d = {ArrowLeft:-1, ArrowRight:1, ArrowUp:-1, ArrowDown:1}[e.key];
+  if(d === undefined) return;
+  e.preventDefault();
+  if(inMenu){ S.menu = (S.menu + 1) % 2; draw(); Sound.move(); return; }
+  if(S.screen === "devices"){ S.card = (S.card + d + CARDS.length) % CARDS.length; draw(); Sound.move(); return; }
+  if(!n) return;
+  S.sel = (S.sel + d + n) % n; draw(); Sound.move();
+});
+
+/* ---------------------------------------------------------------------------
+   Sound. Synthesised here, not sampled — the console's audio is Sony's, but the
+   *design* is documented: a deep hit, a pad, a twinkling chime and a noise
+   swoosh, all under a long reverb, aiming at "a monolith floating in space".
+   Rebuilding that from oscillators is both legal to ship and tweakable.
+   --------------------------------------------------------------------------- */
+const Sound = {
+  ctx:null, master:null, verb:null, on:false,
+  init(){
+    if(this.ctx) return true;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return false;
+    this.ctx = new AC();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.9;
+    this.master.connect(this.ctx.destination);
+    const sr = this.ctx.sampleRate, len = Math.floor(sr*2.8);
+    const buf = this.ctx.createBuffer(2, len, sr);
+    for(let ch=0; ch<2; ch++){
+      const d = buf.getChannelData(ch);
+      for(let i=0;i<len;i++){ const t=i/len; d[i]=(Math.random()*2-1)*Math.pow(1-t,2.7); }
+    }
+    this.verb = this.ctx.createConvolver(); this.verb.buffer = buf;
+    const wet = this.ctx.createGain(); wet.gain.value = 0.85;
+    this.verb.connect(wet); wet.connect(this.master);
+    return true;
+  },
+  bus(send){ const g=this.ctx.createGain(); g.connect(this.master);
+    if(send>0){ const s=this.ctx.createGain(); s.gain.value=send; g.connect(s); s.connect(this.verb); }
+    return g; },
+  tone(type,f0,f1,t0,dur,peak,send,attack){
+    const c=this.ctx, o=c.createOscillator(), g=this.bus(send);
+    o.type=type; o.frequency.setValueAtTime(f0,t0);
+    if(f1!==f0) o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
+    const a=attack===undefined?0.008:attack;
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(peak,t0+a);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+    o.connect(g); o.start(t0); o.stop(t0+dur+0.05);
+  },
+  noise(t0,dur,peak,f0,f1,send){
+    const c=this.ctx, sr=c.sampleRate, n=Math.floor(sr*dur);
+    const b=c.createBuffer(1,n,sr), d=b.getChannelData(0);
+    for(let i=0;i<n;i++) d[i]=Math.random()*2-1;
+    const src=c.createBufferSource(); src.buffer=b;
+    const bp=c.createBiquadFilter(); bp.type="bandpass"; bp.Q.value=0.8;
+    bp.frequency.setValueAtTime(f0,t0);
+    bp.frequency.exponentialRampToValueAtTime(f1,t0+dur);
+    const g=this.bus(send);
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(peak,t0+dur*0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+    src.connect(bp); bp.connect(g); src.start(t0); src.stop(t0+dur+0.05);
+  },
+  boot(){
+    if(!this.on || !this.init()) return;
+    const c=this.ctx, t=c.currentTime+0.05;
+    this.tone("sine",     62, 32, t,        2.6, 0.55, 0.9);   // the deep hit
+    this.tone("triangle", 96, 44, t+0.01,   1.1, 0.20, 0.6);
+    this.noise(t+0.10, 1.7, 0.10, 500, 4200, 0.8);             // swoosh
+    [110,164.8,220,277.2].forEach((f,i) =>                     // pad, slow swell
+      this.tone("sawtooth", f, f, t+0.45+i*0.05, 3.4, 0.045, 0.7, 1.3));
+    [1046.5,1568,2093,3136].forEach((f,i) =>                   // twinkling chime
+      this.tone("sine", f, f, t+1.45+i*0.10, 2.4, 0.075, 1.0, 0.006));
+    [2637,3951].forEach((f,i) =>
+      this.tone("sine", f, f, t+2.65+i*0.13, 1.9, 0.045, 1.0, 0.006));
+  },
+  ui(f0,f1,peak,dur){
+    if(!this.on || !this.init()) return;
+    this.tone("sine", f0, f1, this.ctx.currentTime+0.001, dur||0.09, peak||0.10, 0.25);
+  },
+  move(){ this.ui(760,760,0.055,0.05); },
+  enter(){ this.ui(620,940,0.09,0.13); },
+  back(){ this.ui(520,330,0.08,0.13); },
+  erase(){
+    if(!this.on || !this.init()) return;
+    const t=this.ctx.currentTime+0.001;
+    this.noise(t,0.55,0.13,2600,220,0.7);
+    this.tone("sine",150,48,t,0.7,0.28,0.8);
+  }
+};
+
+/* ---------------- WebGL ---------------- */
+const canvas = document.getElementById("stage");
+const gl = canvas.getContext("webgl2", { antialias:true, alpha:false });
+
+const BG_V = `#version 300 es
+void main(){ vec2 p = vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2));
+  gl_Position = vec4(p*2.0-1.0, 0.0, 1.0); }`;
+
+const BG_F = `#version 300 es
+precision highp float;
+uniform vec2 uRes; uniform float uTime;
+uniform vec3 uTL,uTR,uBL,uBR;
+uniform vec2 uGlow; uniform float uGlowAmt, uRipple, uSpark;
+out vec4 frag;
+void main(){
+  vec2 uv = gl_FragCoord.xy/uRes;
+  vec2 p = uv-0.5; p.x *= uRes.x/uRes.y;
+  vec3 col = mix(mix(uBL,uBR,uv.x), mix(uTL,uTR,uv.x), uv.y);
+
+  // concentric ripples — the moire rings on the device-select screen
+  float d = length(p - vec2(0.02,-0.03));
+  col += uRipple * (sin(d*54.0 - uTime*0.55)*0.5+0.5) * 0.030 * smoothstep(0.95,0.10,d);
+  col += uRipple * (sin(d*23.0 + uTime*0.31)*0.5+0.5) * 0.020 * smoothstep(1.10,0.05,d);
+
+  // the specular bloom behind the selected icon: the whole selection cue
+  float gd = length(p - uGlow);
+  col += uGlowAmt * (exp(-gd*gd*46.0)*0.95 + exp(-gd*gd*7.0)*0.22);
+
+  // the void: blue mist, plus pink / green / red / blue motes circling the scene
+  if(uSpark > 0.001){
+    col += uSpark * exp(-dot(p,p)*2.4) * vec3(0.045,0.085,0.170);
+    for(int i=0;i<12;i++){
+      float fi = float(i);
+      vec3 mc = 0.55 + 0.45*cos(vec3(0.0,2.2,4.4) + fi*1.9);
+      vec2 q = vec2(sin(uTime*0.13+fi*2.13)*0.66, cos(uTime*0.09+fi*1.71)*0.34);
+      float sd = length(p-q);
+      col += uSpark * mc * (exp(-sd*sd*1400.0)*1.05 + exp(-sd*sd*130.0)*0.13);
+    }
+  }
+
+  col *= 1.0 - 0.34*smoothstep(0.30,1.15,length(p));      // vignette
+  col *= 1.0 - 0.030*step(1.0, mod(gl_FragCoord.y,2.0));  // interlace whisper
+  frag = vec4(col,1.0);
+}`;
+
+/* separable gaussian, 5 linear-sampled taps — the real focus pull */
+const BLUR_F = `#version 300 es
+precision highp float;
+uniform sampler2D uSrc; uniform vec2 uRes, uDir;
+out vec4 frag;
+void main(){
+  vec2 uv = gl_FragCoord.xy/uRes;
+  vec4 s = texture(uSrc,uv)*0.2270270270;
+  s += (texture(uSrc,uv+uDir*1.3846153846) + texture(uSrc,uv-uDir*1.3846153846))*0.3162162162;
+  s += (texture(uSrc,uv+uDir*3.2307692308) + texture(uSrc,uv-uDir*3.2307692308))*0.0702702703;
+  frag = s;
+}`;
+
+const BLIT_F = `#version 300 es
+precision highp float;
+uniform sampler2D uSrc; uniform vec2 uRes;
+out vec4 frag;
+void main(){ frag = texture(uSrc, gl_FragCoord.xy/uRes); }`;
+
+const IC_V = `#version 300 es
+in vec3 aPos0; in vec3 aPos1; in vec3 aNrm; in vec4 aTint; in vec2 aUV;
+uniform mat4 uProj,uView,uModel; uniform float uTween;
+out vec3 vN; out vec4 vT; out vec3 vL; out vec2 vUV;
+void main(){
+  vec3 p = mix(aPos0,aPos1,uTween);
+  vN = mat3(uModel)*aNrm;          // normals do NOT morph — same as the PS2
+  vT = aTint; vL = p; vUV = aUV;
+  gl_Position = uProj*uView*uModel*vec4(p,1.0);
+}`;
+
+const IC_F = `#version 300 es
+precision highp float;
+in vec3 vN; in vec4 vT; in vec3 vL; in vec2 vUV;
+uniform vec3 uAmb, uLDir[3], uLCol[3], uColor; uniform float uAlpha, uTexOn;
+uniform sampler2D uTex;
+out vec4 frag;
+void main(){
+  vec3 n = normalize(vN); vec3 d = vec3(0.0);
+  for(int i=0;i<3;i++) d += max(dot(n,uLDir[i]),0.0)*uLCol[i];
+  // vT.a: 0 = own colour, 1 = folder accent, 2 = the application icon texture
+  vec3 base = mix(vT.rgb, uColor, clamp(vT.a,0.0,1.0));
+  if(vT.a > 1.5){
+    vec4 t = texture(uTex, vUV);
+    base = mix(uColor*0.62, t.rgb, t.a*uTexOn);
+  }
+  vec3 c = (uAmb+d)*base;
+  float h = fract(sin(dot(floor(vL.xy*26.0), vec2(12.9898,78.233)))*43758.5453);
+  c *= 0.95+0.05*h;                                   // stand-in for the 128x128 texture
+  frag = vec4(c,uAlpha);
+}`;
+
+function sh(src,t){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function prog(v,f){ const p=gl.createProgram(); gl.attachShader(p,sh(v,gl.VERTEX_SHADER));
+  gl.attachShader(p,sh(f,gl.FRAGMENT_SHADER)); gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; }
+
+/* --- meshes: raw non-indexed triangle lists, flat-shaded, PS2 budget ---------
+   Every icon is a real storage device assembled from primitives. Vertex colour
+   carries absolute RGB plus a mode in .a:
+     0 = plain vertex colour   1 = accent (folder colour)   2 = textured plate
+   The textured plate is where the extracted application icon lands.
+
+   COPLANARITY RULE: two parts must either be clearly apart or deeply overlapped
+   — never abutting, never sharing a face plane. Coincident faces z-fight, and
+   at icon scale the gap that survives a 16-bit depth buffer is bigger than you
+   think. Every stacked surface below clears the one under it by >= 0.014. ---- */
+function finalize(M){
+  const P = new Float32Array(M.pos), nrm = new Float32Array(M.pos.length);
+  let ext = 0;
+  for(let i=0;i<P.length;i++) ext = Math.max(ext, Math.abs(P[i]));
+  for(let t=0;t<P.length;t+=9){
+    const ax=P[t+3]-P[t], ay=P[t+4]-P[t+1], az=P[t+5]-P[t+2];
+    const bx=P[t+6]-P[t], by=P[t+7]-P[t+1], bz=P[t+8]-P[t+2];
+    let nx=ay*bz-az*by, ny=az*bx-ax*bz, nz=ax*by-ay*bx;
+    const l=Math.hypot(nx,ny,nz)||1; nx/=l; ny/=l; nz/=l;
+    for(let k=0;k<3;k++){ nrm[t+k*3]=nx; nrm[t+k*3+1]=ny; nrm[t+k*3+2]=nz; }
+  }
+  return { pos:P, nrm, tint:new Float32Array(M.tint), uv:new Float32Array(M.uv), ext: ext||1 };
+}
+
+const C = {
+  gun:   [0.22,0.24,0.27,0],  slate: [0.38,0.41,0.45,0],
+  steel: [0.64,0.68,0.72,0],  chrome:[0.83,0.86,0.89,0],
+  pcb:   [0.11,0.32,0.19,0],  pcbTop:[0.15,0.41,0.25,0],
+  chip:  [0.08,0.09,0.11,0],  ink:   [0.13,0.14,0.16,0],
+  gold:  [0.80,0.63,0.24,0],  paper: [0.86,0.86,0.83,0],
+  accent:[1,1,1,1],           tex:   [1,1,1,2]
+};
+
+const NOUV = [[0,0],[0,0],[0,0]];
+const tri = (M,a,b,c,col,uv) => {
+  const U = uv || NOUV;
+  for(let i=0;i<3;i++){ const p=[a,b,c][i];
+    M.pos.push(p[0],p[1],p[2]);
+    M.tint.push(col[0],col[1],col[2],col[3]);
+    M.uv.push(U[i][0],U[i][1]); }
+};
+const quad = (M,a,b,c,d,col,uvq) => {
+  if(uvq){ tri(M,a,b,c,col,[uvq[0],uvq[1],uvq[2]]);
+           tri(M,a,c,d,col,[uvq[0],uvq[2],uvq[3]]); }
+  else   { tri(M,a,b,c,col); tri(M,a,c,d,col); }
+};
+
+function box(M,cx,cy,cz,hx,hy,hz,top,side,bottom){
+  const X=[cx-hx,cx+hx], Y=[cy-hy,cy+hy], Z=[cz-hz,cz+hz];
+  const P=(i,j,k)=>[X[i],Y[j],Z[k]];
+  const s = side||top, b = bottom||s;
+  quad(M,P(0,1,1),P(1,1,1),P(1,1,0),P(0,1,0),top);
+  quad(M,P(0,0,0),P(1,0,0),P(1,0,1),P(0,0,1),b);
+  quad(M,P(0,0,1),P(1,0,1),P(1,1,1),P(0,1,1),s);
+  quad(M,P(1,0,0),P(0,0,0),P(0,1,0),P(1,1,0),s);
+  quad(M,P(1,0,1),P(1,0,0),P(1,1,0),P(1,1,1),s);
+  quad(M,P(0,0,0),P(0,0,1),P(0,1,1),P(0,1,0),s);
+}
+
+/* the application-icon surface: one +Y quad with real UVs */
+function plate(M,cx,cy,cz,hx,hz){
+  quad(M,
+    [cx-hx,cy,cz+hz],[cx+hx,cy,cz+hz],[cx+hx,cy,cz-hz],[cx-hx,cy,cz-hz],
+    C.tex, [[0,1],[1,1],[1,0],[0,0]]);
+}
+
+function cyl(M,cx,cy,cz,r,hy,seg,side,cap){
+  const yT=cy+hy, yB=cy-hy;
+  for(let i=0;i<seg;i++){
+    const a0=i/seg*Math.PI*2, a1=(i+1)/seg*Math.PI*2;
+    const x0=cx+Math.cos(a0)*r, z0=cz+Math.sin(a0)*r;
+    const x1=cx+Math.cos(a1)*r, z1=cz+Math.sin(a1)*r;
+    tri(M,[x1,yT,z1],[x0,yT,z0],[cx,yT,cz],cap);
+    tri(M,[x0,yB,z0],[x1,yB,z1],[cx,yB,cz],cap);
+    quad(M,[x1,yB,z1],[x0,yB,z0],[x0,yT,z0],[x1,yT,z1],side);
+  }
+}
+
+function ring(M,cy,rIn,rOut,hy,seg,top,bot,side){
+  const yT=cy+hy, yB=cy-hy;
+  for(let i=0;i<seg;i++){
+    const a0=i/seg*Math.PI*2, a1=(i+1)/seg*Math.PI*2;
+    const c0=Math.cos(a0),s0=Math.sin(a0),c1=Math.cos(a1),s1=Math.sin(a1);
+    const O0=[c0*rOut,s0*rOut], O1=[c1*rOut,s1*rOut];
+    const I0=[c0*rIn,s0*rIn],  I1=[c1*rIn,s1*rIn];
+    quad(M,[O1[0],yT,O1[1]],[O0[0],yT,O0[1]],[I0[0],yT,I0[1]],[I1[0],yT,I1[1]],top);
+    quad(M,[O0[0],yB,O0[1]],[O1[0],yB,O1[1]],[I1[0],yB,I1[1]],[I0[0],yB,I0[1]],bot);
+    quad(M,[O1[0],yB,O1[1]],[O0[0],yB,O0[1]],[O0[0],yT,O0[1]],[O1[0],yT,O1[1]],side);
+    quad(M,[I0[0],yB,I0[1]],[I1[0],yB,I1[1]],[I1[0],yT,I1[1]],[I0[0],yT,I0[1]],side);
+  }
+}
+
+const M0 = () => ({ pos:[], tint:[], uv:[] });
+
+/* 3.5" hard disk. chassis -0.50..0.50 | lid sunk into it | spindle sunk into lid */
+function buildHDD(){
+  const M=M0();
+  box(M, 0,0,0,            0.50,0.075,0.36, C.steel,  C.gun,   C.pcb);
+  box(M, 0,0.082,0,        0.44,0.010,0.30, C.slate,  C.slate);
+  cyl(M, 0.24,0.094,0,     0.105,0.012, 10, C.chrome, C.chrome);
+  cyl(M, 0.24,0.105,0,     0.032,0.008,  8, C.gun,    C.gun);
+  box(M,-0.20,0.094,0,     0.22,0.006,0.25, C.accent, C.accent);
+  plate(M,-0.20,0.116,0,   0.20,0.23);
+  box(M, 0.50,-0.020,0.15, 0.025,0.030,0.12, C.ink, C.ink);
+  return finalize(M);
+}
+
+/* 2.5" SSD. dimples sit clear of the label in x, not stacked on it */
+function buildSSD(){
+  const M=M0();
+  box(M, 0,0,0,            0.42,0.055,0.30, C.slate, C.gun, C.gun);
+  box(M, 0,0.058,0,        0.39,0.008,0.27, C.steel, C.steel);
+  box(M,-0.03,0.067,0,     0.27,0.005,0.21, C.accent, C.accent);
+  plate(M,-0.03,0.088,0,   0.25,0.19);
+  for(const [x,z] of [[0.32,-0.22],[0.32,0.22]])
+    cyl(M,x,0.062,z, 0.030,0.006, 6, C.gun, C.gun);
+  box(M, 0.43,-0.012,0.11, 0.025,0.028,0.14, C.ink, C.ink);
+  return finalize(M);
+}
+
+/* M.2 NVMe. the label used to sit exactly ON the PCB top plane — now sunk into it */
+function buildM2(){
+  const M=M0();
+  box(M, 0,0,0,          0.52,0.016,0.15, C.pcbTop, C.pcb);
+  box(M, 0.30,0.030,0,   0.14,0.016,0.11, C.chip, C.chip);
+  box(M,-0.44,0.004,0,   0.07,0.014,0.12, C.gold, C.gold);
+  box(M,-0.12,0.024,0,   0.24,0.014,0.13, C.accent, C.accent);
+  plate(M,-0.12,0.054,0, 0.13,0.125);
+  box(M, 0.30,0.047,0,   0.05,0.004,0.04, C.paper, C.paper);
+  return finalize(M);
+}
+
+/* 3.5" floppy. label pulled in along z so the write-protect tab no longer
+   intersects it at a 0.002 offset */
+function buildFloppy(){
+  const M=M0();
+  box(M, 0,0,0,            0.36,0.030,0.34, C.ink, C.ink);
+  box(M, 0.25,0.033,0,     0.09,0.008,0.21, C.chrome, C.chrome);
+  box(M,-0.09,0.033,0,     0.23,0.006,0.24, C.accent, C.accent);
+  plate(M,-0.09,0.055,0,   0.21,0.22);
+  cyl(M, 0,-0.033,0,       0.10,0.006, 8, C.slate, C.slate);
+  box(M,-0.31,0.031,-0.30, 0.030,0.006,0.04, C.paper, C.paper);
+  return finalize(M);
+}
+
+/* optical disc. the hub ring's outer wall used to coincide exactly with the data
+   ring's inner wall — same cylinder, opposite normals. Hub now overlaps and is
+   proud of the surface, like a real moulded hub. */
+function buildDisc(){
+  const M=M0();
+  ring(M,0, 0.20,0.58,  0.012, 16, C.accent, C.chrome, C.chrome);
+  ring(M,0, 0.075,0.215, 0.018, 12, C.paper, C.paper, C.chrome);
+  plate(M,0,0.034,0, 0.30,0.30);
+  return finalize(M);
+}
+
+/* USB flash drive. body / collar / shell used to share the plane x = 0.22 —
+   three coincident faces, which is the flicker you could see. Now each part
+   overlaps its neighbour and no two faces are coplanar on any axis. */
+function buildUSB(){
+  const M=M0();
+  box(M,-0.16,0,0,       0.30,0.110,0.170, C.accent, C.accent, C.ink);  // -0.46 .. 0.14
+  plate(M,-0.16,0.128,0, 0.22,0.135);
+  box(M, 0.17,0,0,       0.09,0.125,0.185, C.ink, C.ink);               //  0.08 .. 0.26
+  box(M, 0.42,0,0,       0.17,0.055,0.115, C.chrome, C.steel);          //  0.25 .. 0.59
+  return finalize(M);
+}
+
+/* plain bar — the boot-screen towers */
+function buildBar(){
+  const M=M0();
+  box(M,0,0,0, 1,1,1, C.accent, C.accent, C.accent);
+  return finalize(M);
+}
+
+/* --- per-icon personality -------------------------------------------------
+   Real PS2 icons each had their own copy and delete animation; a card full of
+   saves was a card full of different reactions. So every device gets its own
+   slump style, its own way of coming apart, and its own idle rhythm. -------- */
+const COWER = {
+  // generic defeat: squash, sink, lean away
+  slump:  (x,y,z)=>[ x*1.07, y*0.44 - 0.20, z*1.07 - y*0.34 ],
+  // a warped floppy: edges curl up, middle sags
+  curl:   (x,y,z,e)=>{ const t=(x/e)*(x/e);
+                       return [ x*0.94, y*0.55 - 0.17 + t*0.46, z*0.94 - y*0.18 ]; },
+  // a flexed circuit board: bows in the middle
+  bend:   (x,y,z,e)=>{ const t=1-(x/e)*(x/e);
+                       return [ x*1.02, y*0.80 - 0.09 - t*0.36, z*1.02 ]; },
+  // a dropped disc: tipped over onto one edge
+  wobble: (x,y,z)=>[ x*0.96, y*0.70 - 0.15 + x*0.54, z*0.96 ],
+  // retracts into itself
+  shrink: (x,y,z)=>[ x*0.56, y*0.56 - 0.23, z*0.56 ]
+};
+
+const BURST = {
+  radial: (cx,cy,cz)=>{ const l=Math.hypot(cx,cy,cz)||1;
+    return [ cx+cx/l*1.4, cy+cy/l*1.4+0.34, cz+cz/l*1.4 ]; },
+  // shatters in the plane, like a disc coming apart on the spindle
+  wedge:  (cx,cy,cz)=>{ const r=Math.hypot(cx,cz)||1;
+    return [ cx+cx/r*1.55, cy+0.10, cz+cz/r*1.55 ]; },
+  // snaps in half and the halves fall away
+  snap:   (cx,cy,cz)=>{ const s=cx>=0?1:-1;
+    return [ cx+s*1.15, cy-0.34, cz+s*0.22 ]; }
+};
+
+const DUP = {
+  split: (x,y,z,s)=>[ x + s*0.34, y*0.94 + 0.14, z ],
+  lift:  (x,y,z)=>  [ x*1.20, y*0.55 + 0.34, z*1.20 ]
+};
+
+const MESHDEF = {
+  hdd:    { build:buildHDD,    tilt:-0.80, cower:"slump",  burst:"radial", dup:"split", spin:0.45, breathe:0.85 },
+  ssd:    { build:buildSSD,    tilt:-0.80, cower:"slump",  burst:"radial", dup:"split", spin:0.55, breathe:0.70 },
+  m2:     { build:buildM2,     tilt:-0.72, cower:"bend",   burst:"snap",   dup:"split", spin:0.72, breathe:1.15 },
+  floppy: { build:buildFloppy, tilt:-0.78, cower:"curl",   burst:"radial", dup:"split", spin:0.50, breathe:0.80 },
+  disc:   { build:buildDisc,   tilt:-0.88, cower:"wobble", burst:"wedge",  dup:"lift",  spin:1.60, breathe:0.40 },
+  usb:    { build:buildUSB,    tilt:-0.52, cower:"shrink", burst:"radial", dup:"lift",  spin:0.62, breathe:1.00 },
+  bar:    { build:buildBar,    tilt: 0,    cower:"slump",  burst:"radial", dup:"split", spin:0,    breathe:0 }
+};
+
+/* The poses. Following the console's own rule: the delete pose is the idle
+   pose's emotional inverse — Xiaoyu cries instead of jumping, Samanosuke sits
+   down and puts the gauntlet on the floor. The burst is computed FROM the
+   cowered pose so the collapse is continuous rather than snapping back through
+   the neutral shape on its way to exploding. */
+function shapes(base, def){
+  const P=base.pos, N=base.nrm, n=P.length, e=base.ext;
+  const cw = COWER[(def&&def.cower)||"slump"];
+  const bs = BURST[(def&&def.burst)||"radial"];
+  const dp = DUP[(def&&def.dup)||"split"];
+
+  const inflate=new Float32Array(n);
+  for(let i=0;i<n;i++) inflate[i]=P[i]+N[i]*0.05;
+
+  const dup=new Float32Array(n);
+  for(let t=0;t<n;t+=9){
+    const s = ((P[t]+P[t+3]+P[t+6])/3) >= 0 ? 1 : -1;
+    for(let k=0;k<3;k++){
+      const o=t+k*3, v=dp(P[o],P[o+1],P[o+2],s,e);
+      dup[o]=v[0]; dup[o+1]=v[1]; dup[o+2]=v[2];
+    }
+  }
+
+  const cower=new Float32Array(n);
+  for(let i=0;i<n;i+=3){
+    const v=cw(P[i],P[i+1],P[i+2],e);
+    cower[i]=v[0]; cower[i+1]=v[1]; cower[i+2]=v[2];
+  }
+
+  const del=new Float32Array(n);
+  for(let t=0;t<n;t+=9){
+    const cx=(cower[t]+cower[t+3]+cower[t+6])/3;
+    const cy=(cower[t+1]+cower[t+4]+cower[t+7])/3;
+    const cz=(cower[t+2]+cower[t+5]+cower[t+8])/3;
+    const o=bs(cx,cy,cz);
+    for(let k=0;k<3;k++){
+      del[t+k*3]  =o[0]+(cower[t+k*3]  -cx)*0.28;
+      del[t+k*3+1]=o[1]+(cower[t+k*3+1]-cy)*0.28;
+      del[t+k*3+2]=o[2]+(cower[t+k*3+2]-cz)*0.28;
+    }
+  }
+  return { inflate, dup, cower, del };
+}
+
+const persp=(f,a,n,fz)=>{ const t=1/Math.tan(f/2), d=1/(n-fz);
+  return new Float32Array([t/a,0,0,0, 0,t,0,0, 0,0,(fz+n)*d,-1, 0,0,2*fz*n*d,0]); };
+const view=z=>new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,-z,1]);
+function modelFull(tx,ty,tz,ry,rx,kx,ky,kz){
+  const cry=Math.cos(ry), sry=Math.sin(ry), crx=Math.cos(rx), srx=Math.sin(rx);
+  return new Float32Array([
+    cry*kx,      0,       -sry*kx,     0,
+    sry*srx*ky,  crx*ky,   cry*srx*ky, 0,
+    sry*crx*kz, -srx*kz,   cry*crx*kz, 0,
+    tx, ty, tz, 1 ]);
+}
+const model=(tx,ty,ry,rx,s)=>modelFull(tx,ty,0,ry,rx,s,s,s);
+
+/* deterministic scatter for the boot-screen towers */
+const scatter = i => {
+  const a=Math.sin(i*12.9898)*43758.5453, b=Math.sin(i*78.233)*43758.5453;
+  return [ (a-Math.floor(a)-0.5)*5.4, -(b-Math.floor(b))*7.2-0.6 ];
+};
+
+/* palette easing */
+const bgCur=[[0,0,0],[0,0,0],[0,0,0],[0,0,0]], bgTgt=[[0,0,0],[0,0,0],[0,0,0],[0,0,0]];
+const glowCur=[0,0], glowTgt=[0,0];
+let glowACur=0, glowATgt=0, rippleCur=0, rippleTgt=0, sparkCur=0, sparkTgt=0;
+function palette(){
+  // The per-save gradient only appears once you drill INTO a save — the grid
+  // itself stays on the neutral silver ground. Confirmed against reference.
+  let cols = SILVER;
+  if(S.screen === "boot") cols = VOID;
+  else if((S.screen === "options" || S.screen === "details") && cur()) cols = cur().bg;
+  cols.forEach((h,i) => { bgTgt[i] = hex(h); });
+  rippleTgt = S.screen === "boot" ? 0 : S.screen === "devices" ? 1 : 0.25;
+  glowATgt  = (S.screen === "details" || S.screen === "boot") ? 0 : 1;
+  sparkTgt  = S.screen === "boot" ? 1 : 0;
+  const L = layout();
+  const g = L[S.screen === "devices" ? S.card : Math.min(S.sel, L.length-1)];
+  if(g){ const asp = canvas.clientWidth / Math.max(1,canvas.clientHeight);
+    glowTgt[0] = g.ndc[0]*0.5*asp; glowTgt[1] = g.ndc[1]*0.5; }
+}
+
+const anim = { mode:"idle", t:0, spin:0, alpha:1, pending:null, h:0, last:null };
+function startCopy(){
+  if(anim.mode!=="idle") return;
+  anim.mode="copy"; anim.t=0; S.screen="contents"; draw();
+}
+function startDelete(){
+  if(anim.mode!=="idle" || !cur()) return;
+  anim.mode="delete"; anim.t=0; anim.pending=S.sel;
+  S.confirm=false; S.screen="contents"; draw();
+}
+
+if(!gl){
+  canvas.remove();
+  draw();
+} else {
+  const bgP = prog(BG_V,BG_F), icP = prog(IC_V,IC_F);
+  const MESH = {};
+  for(const [k,def] of Object.entries(MESHDEF)){
+    const base = def.build(), sp = shapes(base, def);
+    const buf = d => { const b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b);
+      gl.bufferData(gl.ARRAY_BUFFER,d,gl.STATIC_DRAW); return b; };
+    MESH[k] = { n:base.pos.length/3, pos:buf(base.pos), nrm:buf(base.nrm),
+                tint:buf(base.tint), uv:buf(base.uv),
+                idle:buf(sp.inflate), dup:buf(sp.dup),
+                cower:buf(sp.cower), del:buf(sp.del),
+                tilt:def.tilt, spin:def.spin, breathe:def.breathe,
+                fit: k==="bar" ? 1 : 0.95/base.ext };
+  }
+  /* ---------------------------------------------------------------------
+     Application-icon textures.
+     In the real app these are the extracted Windows shell icons (SHGetFileInfo
+     + SHGetImageList/SHIL_JUMBO gives 256x256), downsampled to 128x128 and
+     uploaded exactly as a PS2 icon texture was. Here they're drawn procedurally
+     so the demo shows the real behaviour without shipping anyone's artwork.
+     --------------------------------------------------------------------- */
+  const shade=(h,m)=>{ const c=hex(h);
+    return `rgb(${c.map(v=>Math.round(Math.min(255,v*255*m))).join(",")})`; };
+  function rr(x,a,b,w,h,r){ x.beginPath();
+    x.moveTo(a+r,b); x.arcTo(a+w,b,a+w,b+h,r); x.arcTo(a+w,b+h,a,b+h,r);
+    x.arcTo(a,b+h,a,b,r); x.arcTo(a,b,a+w,b,r); x.closePath(); }
+
+  const GLYPH = {
+    pkg:  x=>{ x.beginPath(); for(let i=0;i<6;i++){ const a=i/6*Math.PI*2-Math.PI/2;
+                 x[i?"lineTo":"moveTo"](Math.cos(a)*34,Math.sin(a)*34); } x.closePath(); x.stroke();
+               x.beginPath(); x.moveTo(0,-34); x.lineTo(0,4); x.moveTo(0,4);
+               x.lineTo(-29,-13); x.moveTo(0,4); x.lineTo(29,-13); x.stroke(); },
+    win:  x=>{ [[-32,-32],[4,-32],[-32,4],[4,4]].forEach(([a,b])=>x.fillRect(a,b,28,28)); },
+    gear: x=>{ x.beginPath(); for(let i=0;i<8;i++){ const a=i/8*Math.PI*2;
+                 x.moveTo(Math.cos(a)*20,Math.sin(a)*20); x.lineTo(Math.cos(a)*36,Math.sin(a)*36); }
+               x.stroke(); x.beginPath(); x.arc(0,0,20,0,7); x.stroke(); },
+    app:  x=>{ x.lineWidth=6; rr(x,-32,-32,64,64,14); x.stroke();
+               [[-14,-14],[6,-14],[-14,6],[6,6]].forEach(([a,b])=>x.fillRect(a,b,10,10)); },
+    play: x=>{ x.beginPath(); x.moveTo(-18,-30); x.lineTo(32,0); x.lineTo(-18,30); x.closePath(); x.fill(); },
+    down: x=>{ x.beginPath(); x.moveTo(0,-34); x.lineTo(0,12); x.moveTo(-20,-6);
+               x.lineTo(0,14); x.lineTo(20,-6); x.stroke();
+               x.beginPath(); x.moveTo(-30,28); x.lineTo(30,28); x.stroke(); },
+    blend:x=>{ x.beginPath(); x.arc(0,0,32,0,7); x.stroke();
+               x.beginPath(); x.arc(9,-4,13,0,7); x.fill(); },
+    doc:  x=>{ x.lineWidth=6; x.beginPath(); x.moveTo(-24,-34); x.lineTo(14,-34);
+               x.lineTo(26,-20); x.lineTo(26,34); x.lineTo(-24,34); x.closePath(); x.stroke();
+               for(let i=0;i<3;i++){ x.beginPath(); x.moveTo(-14,-4+i*13); x.lineTo(16,-4+i*13); x.stroke(); } },
+    steam:x=>{ x.beginPath(); x.arc(0,0,32,0,7); x.stroke();
+               x.beginPath(); x.arc(-6,-6,12,0,7); x.fill();
+               x.beginPath(); x.moveTo(-6,-6); x.lineTo(30,12); x.stroke(); },
+    pad:  x=>{ x.lineWidth=6; rr(x,-36,-18,72,36,18); x.stroke();
+               x.beginPath(); x.moveTo(-22,0); x.lineTo(-8,0); x.moveTo(-15,-7);
+               x.lineTo(-15,7); x.stroke();
+               x.beginPath(); x.arc(14,-4,5,0,7); x.fill();
+               x.beginPath(); x.arc(24,6,5,0,7); x.fill(); },
+    rec:  x=>{ x.beginPath(); x.arc(0,0,32,0,7); x.stroke();
+               x.beginPath(); x.arc(0,0,15,0,7); x.fill(); },
+    clock:x=>{ x.beginPath(); x.arc(0,0,32,0,7); x.stroke();
+               x.beginPath(); x.moveTo(0,-20); x.lineTo(0,2); x.lineTo(17,12); x.stroke(); },
+    letter:(x,txt)=>{ x.font="700 54px 'Segoe UI',system-ui,sans-serif";
+               x.textAlign="center"; x.textBaseline="middle"; x.fillText(txt||"?",0,2); }
+  };
+
+  function iconTexture(glyph, tint, label){
+    const S=128, cv=document.createElement("canvas"); cv.width=cv.height=S;
+    const x=cv.getContext("2d");
+    const g=x.createLinearGradient(0,0,0,S);
+    g.addColorStop(0, shade(tint,1.30)); g.addColorStop(1, shade(tint,0.55));
+    x.fillStyle=g; rr(x,5,5,S-10,S-10,24); x.fill();
+    x.lineWidth=3; x.strokeStyle="rgba(255,255,255,.42)"; x.stroke();
+    x.save(); x.translate(S/2,S/2+2);
+    x.strokeStyle="#fff"; x.fillStyle="#fff"; x.lineWidth=8;
+    x.lineJoin="round"; x.lineCap="round";
+    x.shadowColor="rgba(0,0,0,.45)"; x.shadowBlur=6; x.shadowOffsetY=2;
+    (GLYPH[glyph]||GLYPH.app)(x,label);
+    x.restore();
+
+    const t=gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D,t);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cv);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST); // point-sampled, PS2 style
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    return t;
+  }
+  CARDS.forEach(c => {
+    c.tex = iconTexture("letter", "#9fb4c8", c.vol);
+    c.saves.forEach(s => { s.tex = iconTexture(s.glyph, s.tint); });
+  });
+  // 1x1 white, bound whenever nothing textured is being drawn
+  const blankTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, blankTex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,
+    new Uint8Array([255,255,255,255]));
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+
+  const emptyVAO = gl.createVertexArray(), vao = gl.createVertexArray();
+  const A = n => gl.getAttribLocation(icP,n);
+  gl.bindVertexArray(vao);
+  [A("aPos0"),A("aPos1"),A("aNrm"),A("aTint"),A("aUV")].forEach(l => gl.enableVertexAttribArray(l));
+  gl.bindVertexArray(null);
+
+  const U=(p,n)=>gl.getUniformLocation(p,n);
+  const ub={res:U(bgP,"uRes"),time:U(bgP,"uTime"),tl:U(bgP,"uTL"),tr:U(bgP,"uTR"),
+            bl:U(bgP,"uBL"),br:U(bgP,"uBR"),glow:U(bgP,"uGlow"),ga:U(bgP,"uGlowAmt"),
+            rp:U(bgP,"uRipple"),sp:U(bgP,"uSpark")};
+  const ui={proj:U(icP,"uProj"),view:U(icP,"uView"),model:U(icP,"uModel"),tween:U(icP,"uTween"),
+            amb:U(icP,"uAmb"),ldir:U(icP,"uLDir"),lcol:U(icP,"uLCol"),color:U(icP,"uColor"),
+            alpha:U(icP,"uAlpha"),tex:U(icP,"uTex"),texOn:U(icP,"uTexOn")};
+
+  /* offscreen targets for the focus pull */
+  const blurP = prog(BG_V,BLUR_F), blitP = prog(BG_V,BLIT_F);
+  const ubr = {src:U(blurP,"uSrc"), res:U(blurP,"uRes"), dir:U(blurP,"uDir")};
+  const ubl = {src:U(blitP,"uSrc"), res:U(blitP,"uRes")};
+  let rtA=null, rtB=null;
+  function makeRT(w,h){
+    const tex=gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D,tex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    const db=gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER,db);
+    // 24-bit: the options screen renders through here, and a 16-bit buffer is
+    // where the label plates were z-fighting against the shells beneath them
+    gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT24,w,h);
+    const fb=gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER,fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,db);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+    return {fb,tex,db,w,h};
+  }
+  function ensureRT(){
+    const w=Math.max(2,canvas.width>>1), h=Math.max(2,canvas.height>>1);
+    if(rtA && rtA.w===w && rtA.h===h) return;
+    for(const rt of [rtA,rtB]) if(rt){
+      gl.deleteTexture(rt.tex); gl.deleteRenderbuffer(rt.db); gl.deleteFramebuffer(rt.fb); }
+    rtA=makeRT(w,h); rtB=makeRT(w,h);
+  }
+  function blurPass(src,dst,dir){
+    gl.bindFramebuffer(gl.FRAMEBUFFER,dst.fb);
+    gl.viewport(0,0,dst.w,dst.h);
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+    gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(blurP); gl.bindVertexArray(emptyVAO);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,src.tex);
+    gl.uniform1i(ubr.src,0);
+    gl.uniform2f(ubr.res,dst.w,dst.h);
+    gl.uniform2f(ubr.dir,dir[0],dir[1]);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+  }
+
+  const LDIR=new Float32Array([0.42,0.66,0.62, -0.68,0.28,0.68, 0.08,-0.86,0.50]);
+  const LCOL=new Float32Array([0.86,0.87,0.90, 0.30,0.33,0.40, 0.16,0.15,0.13]);
+  const AMB =new Float32Array([0.40,0.40,0.43]);
+  // boot pass: flat and self-lit, so the towers read as light rather than objects
+  const BOOT_AMB=new Float32Array([0.86,0.92,1.02]);
+  const BOOT_LCOL=new Float32Array([0.10,0.11,0.13, 0.05,0.06,0.08, 0.02,0.02,0.03]);
+  const TOWER=new Float32Array([0.62,0.72,0.92]);
+
+  const FOV=0.62, CAMZ=3.9;
+  let dpr=1;
+  function resize(){
+    dpr = Math.min(devicePixelRatio||1, 1.75);
+    const w=Math.round(canvas.clientWidth*dpr), h=Math.round(canvas.clientHeight*dpr);
+    if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; }
+  }
+
+  function bindMesh(m, target, from){
+    gl.bindVertexArray(vao);
+    const set=(b,l,n)=>{ gl.bindBuffer(gl.ARRAY_BUFFER,b); gl.vertexAttribPointer(l,n,gl.FLOAT,false,0,0); };
+    set(m[from||"pos"],A("aPos0"),3); set(m[target],A("aPos1"),3); set(m.nrm,A("aNrm"),3);
+    set(m.tint,A("aTint"),4); set(m.uv,A("aUV"),2);
+  }
+
+  let last=performance.now(), clock=0;
+  function frame(now){
+    const dt=Math.min((now-last)/1000,0.05); last=now;
+    if(!REDUCED) clock+=dt;
+    resize(); palette();
+
+    const k=Math.min(1,dt*5);
+    for(let i=0;i<4;i++) for(let c=0;c<3;c++) bgCur[i][c]+=(bgTgt[i][c]-bgCur[i][c])*k;
+    glowCur[0]+=(glowTgt[0]-glowCur[0])*k; glowCur[1]+=(glowTgt[1]-glowCur[1])*k;
+    glowACur+=(glowATgt-glowACur)*k; rippleCur+=(rippleTgt-rippleCur)*k;
+    sparkCur+=(sparkTgt-sparkCur)*k;
+
+    gl.viewport(0,0,canvas.width,canvas.height);
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+    gl.useProgram(bgP); gl.bindVertexArray(emptyVAO);
+    gl.uniform2f(ub.res,canvas.width,canvas.height);
+    gl.uniform1f(ub.time,REDUCED?9.0:clock);
+    gl.uniform3fv(ub.tl,bgCur[0]); gl.uniform3fv(ub.tr,bgCur[1]);
+    gl.uniform3fv(ub.bl,bgCur[2]); gl.uniform3fv(ub.br,bgCur[3]);
+    gl.uniform2f(ub.glow,glowCur[0],glowCur[1]);
+    gl.uniform1f(ub.ga,glowACur*0.55); gl.uniform1f(ub.rp,rippleCur);
+    gl.uniform1f(ub.sp,sparkCur*0.9);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+
+    if(S.screen === "boot"){
+      bootT += dt;
+      const asp = canvas.width/Math.max(1,canvas.height);
+      const items = list();
+      const maxKb = items.length ? Math.max(...items.map(s=>s.kb)) : 1;
+      const totalKb = items.reduce((a,s)=>a+s.kb,0);
+
+      gl.enable(gl.DEPTH_TEST); gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.useProgram(icP);
+      gl.uniformMatrix4fv(ui.proj,false,persp(FOV,asp,1.0,30.0));
+      gl.uniformMatrix4fv(ui.view,false,view(5.7 - 2.1*Math.min(1,bootT/BOOT_DUR)));
+      gl.uniform3fv(ui.amb,BOOT_AMB); gl.uniform3fv(ui.ldir,LDIR); gl.uniform3fv(ui.lcol,BOOT_LCOL);
+      gl.uniform3fv(ui.color,TOWER); gl.uniform1f(ui.tween,0);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,blankTex);
+      gl.uniform1i(ui.tex,0); gl.uniform1f(ui.texOn,0);
+      const m = MESH.bar; bindMesh(m,"idle");
+
+      // one tower per folder, height by size — an empty card gets an empty void
+      items.forEach((s,i) => {
+        const grow = Math.max(0, Math.min(1, (bootT - 0.4 - i*0.17)/0.85));
+        if(grow <= 0) return;
+        const [tx,tz] = scatter(i);
+        const H = (0.34 + 2.45*Math.pow(s.kb/maxKb, 0.55)) * grow;
+        const fade = Math.max(0.14, Math.min(1, 1 - (-tz)/9.5));
+        const kx = 0.085, kz = 0.085, ky = H/2, cyy = -1.25 + H/2;
+        gl.uniform1f(ui.alpha, fade);
+        gl.uniformMatrix4fv(ui.model,false,modelFull(tx,cyy,tz,0,0,kx,ky,kz));
+        gl.drawArrays(gl.TRIANGLES,0,m.n);
+        gl.uniform1f(ui.alpha, fade*0.15);
+        gl.uniformMatrix4fv(ui.model,false,modelFull(tx,cyy,tz,0,0,kx*2.7,ky*1.01,kz*2.7));
+        gl.drawArrays(gl.TRIANGLES,0,m.n);
+      });
+      gl.bindVertexArray(null);
+
+      const bc = document.getElementById("bootCount");
+      if(bc){
+        const p = Math.min(1, bootT/(BOOT_DUR*0.82));
+        bc.textContent = comma(totalKb * p*p*(3-2*p)) + " KB";
+      }
+      if(bootT > BOOT_DUR){ S.screen = "devices"; draw(); }
+    } else if(S.screen !== "details"){
+      /* What the selected icon is doing. The hover states come straight off the
+         menu, because on the console the delete icon is what you saw when you
+         were ABOUT to delete — Xiaoyu crying instead of jumping — not only
+         once the deletion was underway. */
+      let mode = anim.mode;
+      if(mode==="idle" && S.screen==="options")
+        mode = (!S.confirm && S.menu===0) ? "hoverCopy" : "hoverDelete";
+      if(mode !== anim.last){ anim.h = 0; anim.last = mode; }
+
+      let target="idle", from="pos", tween=0, tremble=0;
+      if(mode==="idle"){
+        tween = REDUCED?0.25:0.30+0.30*Math.sin(clock*1.7);
+        anim.spin += dt*(REDUCED?0:0.55);
+        anim.alpha += (1-anim.alpha)*Math.min(1,dt*5);
+      } else if(mode==="hoverCopy"){
+        target="dup"; anim.h += (0.42-anim.h)*Math.min(1,dt*6);
+        tween=anim.h; anim.spin += dt*1.5; anim.alpha=1;
+      } else if(mode==="hoverDelete"){
+        target="cower"; anim.h += (1-anim.h)*Math.min(1,dt*7);
+        tween=anim.h; tremble=anim.h; anim.spin += dt*0.10; anim.alpha=1;
+      } else if(mode==="copy"){
+        anim.t+=dt; target="dup"; const T=anim.t;
+        tween = T<0.28 ? 0.42+0.58*(T/0.28) : T<0.92 ? 1 : Math.max(0,1-(T-0.92)/0.36);
+        anim.spin += dt*(1.2+7.0*Math.min(1,tween));
+        if(T>1.30){ anim.mode="idle"; anim.last=null; }
+      } else {
+        anim.t+=dt; const T=anim.t;
+        from="cower";                    // the collapse continues from the slump
+        if(T<0.40){ target="cower"; tween=1; tremble=1.9; anim.spin += dt*0.08; }
+        else { target="del"; tween=Math.min(1,(T-0.40)/0.52); anim.spin += dt*1.7; }
+        anim.alpha = T<0.62 ? 1 : Math.max(0,1-(T-0.62)/0.40);
+        if(T>1.00 && anim.pending!==null){
+          const L=list(); L.splice(anim.pending,1); anim.pending=null;
+          if(S.sel>=L.length) S.sel=Math.max(0,L.length-1);
+          draw();
+        }
+        if(T>1.16){ anim.mode="idle"; anim.t=0; anim.alpha=0; anim.last=null; }
+      }
+
+      const asp = canvas.width/Math.max(1,canvas.height);
+      const halfH = Math.tan(FOV/2)*CAMZ;
+      const L=layout();
+      const items = S.screen==="devices" ? CARDS : list();
+      const selIdx = S.screen==="devices" ? S.card : S.sel;
+      const optionsMode = S.screen==="options";
+
+      const setupIcons = () => {
+        gl.useProgram(icP);
+        gl.uniformMatrix4fv(ui.proj,false,persp(FOV,asp,2.0,9.0));
+        gl.uniformMatrix4fv(ui.view,false,view(CAMZ));
+        gl.uniform3fv(ui.amb,AMB); gl.uniform3fv(ui.ldir,LDIR); gl.uniform3fv(ui.lcol,LCOL);
+        gl.uniform1i(ui.tex,0); gl.uniform1f(ui.texOn,1);
+      };
+
+      /* one opaque draw of one icon. Everything is opaque and depth-tested —
+         no alpha stacking anywhere, which is what made these look like glass. */
+      const drawIcon = (it,i) => {
+        const g=L[i]; if(!g) return;
+        const isSel = i===selIdx;
+        const acting = isSel && mode!=="idle";
+        const mesh = MESH[it.mesh || "ssd"];
+        bindMesh(mesh, acting ? target : "idle", acting ? from : "pos");
+        const ph = i*1.37;
+        // each device keeps its own idle rhythm — a disc spins, a floppy drifts
+        const tw = acting ? tween
+          : (REDUCED ? 0.25 : 0.30+0.30*Math.sin(clock*1.6*(mesh.breathe||1)+ph));
+        const spin = acting ? anim.spin
+          : (REDUCED ? 0.6+ph : clock*0.5*(mesh.spin||1)+ph);
+        // the shake. Small, fast, and the single clearest "please don't" signal.
+        const sh = (acting && tremble>0 && !REDUCED) ? tremble*g.scale*mesh.fit : 0;
+        const shx = sh ? Math.sin(clock*46.0)*0.045*sh : 0;
+        const shy = sh ? Math.sin(clock*37.3+1.1)*0.030*sh : 0;
+        const shr = sh ? Math.sin(clock*41.7+0.4)*0.055*tremble : 0;
+        const tint = S.screen==="devices"
+          ? (isSel ? [0.62,0.72,0.86] : [0.26,0.27,0.30])
+          : hex(it.tint);
+        // lift the model off the cell centre so the caption below stays clear
+        const cy0 = g.ndc[1]*halfH + g.cell[1]*halfH*0.42;
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, it.tex || null);
+        gl.uniform1f(ui.texOn, it.tex ? 1 : 0);
+        gl.uniform1f(ui.tween,tw);
+        gl.uniform3fv(ui.color,new Float32Array(tint));
+        gl.uniform1f(ui.alpha, acting ? anim.alpha : 1);
+        gl.uniformMatrix4fv(ui.model,false,
+          model(g.ndc[0]*halfH*asp + shx, cy0 + shy, spin, mesh.tilt + shr, g.scale*mesh.fit));
+        gl.drawArrays(gl.TRIANGLES,0,mesh.n);
+      };
+
+      if(optionsMode){
+        /* Real focus pull: render the unselected icons opaque into an offscreen
+           target, blur it separably, composite, then draw the selection sharp
+           on top. Premultiplied compositing, so no dark fringe on the edges. */
+        ensureRT();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, rtA.fb);
+        gl.viewport(0,0,rtA.w,rtA.h);
+        gl.clearColor(0,0,0,0);
+        gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+        gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST);
+        setupIcons();
+        items.forEach((it,i) => { if(i!==selIdx) drawIcon(it,i); });
+
+        blurPass(rtA, rtB, [3.0/rtA.w, 0]);
+        blurPass(rtB, rtA, [0, 3.0/rtA.h]);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+        gl.viewport(0,0,canvas.width,canvas.height);
+        gl.disable(gl.DEPTH_TEST);
+        gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.useProgram(blitP); gl.bindVertexArray(emptyVAO);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, rtA.tex);
+        gl.uniform1i(ubl.src,0); gl.uniform2f(ubl.res,canvas.width,canvas.height);
+        gl.drawArrays(gl.TRIANGLES,0,3);
+
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+        gl.enable(gl.DEPTH_TEST);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        setupIcons();
+        drawIcon(items[selIdx], selIdx);
+      } else {
+        gl.enable(gl.DEPTH_TEST); gl.clear(gl.DEPTH_BUFFER_BIT);
+        gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        setupIcons();
+        items.forEach(drawIcon);
+      }
+      gl.bindVertexArray(null);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  draw();
+  requestAnimationFrame(frame);
+}
+})();
+</script>

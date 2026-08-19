@@ -1,0 +1,344 @@
+:root{
+  --gold:#ffe14a; --sky:#6fd0ff; --rose:#ff7a86; --leaf:#8fe6a0;
+  --ui:"Segoe UI",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:#000; color:#fff; overflow:hidden;
+  font-family:var(--ui); font-size:16px; line-height:1.5;
+  user-select:none; -webkit-font-smoothing:antialiased;
+  cursor:default;
+}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+.osd{position:fixed;top:32px;left:0;right:0;bottom:0;z-index:1}
+
+/* Custom window chrome. The scene runs edge to edge behind it, so the strip is
+   a gradient rather than a bar — no seam between chrome and content. */
+#titlebar{
+  position:fixed;top:0;left:0;right:0;height:32px;z-index:5;
+  display:flex;align-items:center;justify-content:space-between;padding-left:15px;
+  background:linear-gradient(180deg,rgba(0,0,0,.62),rgba(0,0,0,0));
+}
+.tb-name{font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#7d8ba0;
+  pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:70%;text-shadow:0 1px 2px rgba(0,0,0,.8)}
+.tb-btns{display:flex;height:100%}
+.tb-btns button{width:44px;height:100%;border:0;background:none;color:#9aa7bb;
+  font:inherit;font-size:12px;line-height:1;cursor:pointer;
+  transition:background .12s,color .12s}
+.tb-btns button:hover{background:rgba(255,255,255,.10);color:#fff}
+#tbClose:hover{background:#c22b3a;color:#fff}
+.tb-btns button:focus-visible{outline:none;background:rgba(255,255,255,.16)}
+.osd *{text-shadow:0 2px 3px rgba(0,0,0,.6)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+/* ---------- shared chrome ---------- */
+.head{position:absolute;top:2.4%;left:3%;right:3%;display:flex;
+  justify-content:space-between;gap:20px;align-items:flex-start;pointer-events:none}
+.head-card{font-size:clamp(15px,1.7vw,25px);font-weight:600;line-height:1.15}
+.head-card small{font-size:.62em;font-weight:600;letter-spacing:.04em}
+.head-free{font-size:clamp(11px,1.1vw,16px);font-variant-numeric:tabular-nums;opacity:.94}
+.head-r{text-align:right;color:var(--gold);font-size:clamp(16px,2vw,29px);
+  font-weight:600;line-height:1.12;max-width:54%;overflow-wrap:anywhere}
+.head-r .sub{display:block;color:#fff;font-size:.5em;font-weight:400;
+  font-variant-numeric:tabular-nums;margin-top:.3em;opacity:.92}
+
+/* The key bar. This is a PC: the footer carries keycaps, not console buttons.
+   Windows' own convention is unadorned accelerator text, which disappears on a
+   3D scene, so the caps get just enough chrome to read against anything —
+   label contrast is measured against the cap's own fill, not the page. */
+.foot{position:absolute;bottom:3.2%;left:0;right:0;display:flex;flex-direction:column;
+  align-items:center;gap:.55em;
+  font-size:clamp(12px,1.4vw,20px);font-weight:600;pointer-events:none}
+.foot-keys{display:flex;justify-content:center;flex-wrap:wrap;
+  gap:.5em clamp(14px,2.6vw,40px)}
+.foot span{display:inline-flex;align-items:center;gap:.45em}
+.hint{gap:.5em}
+.hint .hl,.krow .hl{color:#e8eef8;font-weight:600}
+.keys{display:inline-flex;align-items:center;gap:.22em}
+.foot kbd.kbd[data-key], .foot .kcombo, .help kbd.kbd[data-key], .help .kcombo{
+  pointer-events:auto; cursor:pointer}
+.foot kbd.kbd[data-key]:hover, .help kbd.kbd[data-key]:hover{
+  background:rgba(60,90,140,.95); border-color:rgba(255,255,255,.65); color:#fff}
+.foot kbd.kbd[data-key]:active, .help kbd.kbd[data-key]:active{transform:translateY(1px)}
+.foot .kcombo:hover kbd.kbd, .help .kcombo:hover kbd.kbd{
+  background:rgba(60,90,140,.95); border-color:rgba(255,255,255,.65); color:#fff}
+.kcombo{display:inline-flex;align-items:center;gap:.06em}
+kbd.kbd{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:2.05em;height:1.9em;padding:0 .5em;
+  font-family:var(--ui);font-size:.8em;font-weight:600;line-height:1;letter-spacing:.02em;
+  color:#f2f6fc;background:rgba(14,19,28,.82);
+  border:1px solid rgba(255,255,255,.34);border-radius:3px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 1px 0 rgba(0,0,0,.6);
+  text-shadow:none;white-space:nowrap}
+kbd.kbd-arrow{min-width:1.9em;font-size:.9em}
+.kplus,.kor{color:#9fb0c4;font-weight:600;font-size:.78em;margin:0 .06em}
+.kor{opacity:.7}
+.scanning-note{color:var(--sky);font-weight:600;opacity:.92;
+  font-size:.9em;letter-spacing:.04em}
+/* The console's erase warning. It gets its own band in the empty strip between
+   the last row of icons and the key bar, NOT a line inside the footer: at 20px
+   ten pixels above the keycaps it was technically on screen and still easy to
+   miss, which is the same thing as not being there. The key bar stays put —
+   hiding it during the erase would repeat the disappearing-buttons complaint. */
+.deleting,.copying{position:absolute;left:0;right:0;bottom:13%;text-align:center;
+  color:#fff;font-weight:700;letter-spacing:.03em;pointer-events:none;
+  font-size:clamp(17px,2.3vw,33px);
+  text-shadow:0 0 3px #000,0 2px 3px #000,1px 0 3px #000,-1px 0 3px #000,
+    0 -1px 3px #000,0 0 22px rgba(0,0,0,.95);
+  animation:deleteFlash 1s ease-in-out infinite}
+@keyframes deleteFlash{0%,100%{opacity:1}50%{opacity:.2}}
+/* The copy carries a figure under the warning. Only the warning pulses — a
+   percentage that fades in and out is unreadable exactly when it matters. */
+.copying{animation:none}
+.copying b{display:block;font-weight:700;animation:deleteFlash 1s ease-in-out infinite}
+.copying i{display:block;font-style:normal;font-weight:600;font-size:.55em;
+  letter-spacing:.07em;color:#dbe7f7;margin-top:.3em;
+  font-variant-numeric:tabular-nums}
+.scroll-hint{color:var(--sky);font-size:.8em}
+
+/* A hairline under the window chrome: visible from anywhere on the screen
+   without taking space from the grid, which is where the eye actually is. */
+.scanbar{position:absolute;top:0;left:0;right:0;height:3px;background:rgba(255,255,255,.10)}
+.scanbar>i{display:block;height:100%;background:linear-gradient(90deg,#6fd0ff,#ffe14a);
+  box-shadow:0 0 10px rgba(111,208,255,.8);transition:width .25s linear}
+.head-free.scanning{color:var(--sky)}
+
+/* ---------- icon cells ---------- */
+.cells{position:absolute;inset:0}
+.cell{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;
+  justify-content:flex-end;align-items:center;background:none;border:1px solid transparent;
+  border-radius:3px;color:#fff;font:inherit;cursor:pointer;padding:0 2px 2px}
+/* The caption is white on the console's silver field — the worst case for
+   contrast — and it can also land on the icon below it or inside the selection
+   bloom. The generic .osd shadow is far too soft to hold against any of those,
+   so the glyphs carry their own dark rim plus a wide pool. The rim has to sit
+   on <b> and <i>: a shadow on .cap draws behind .cap's own text, and .cap has
+   none of its own. --capScale is the Label size setting. */
+.cell .cap{font-size:calc(clamp(10px,1.02vw,14px) * var(--capScale,1));
+  line-height:1.28;text-align:center;max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cell .cap b,.cell .cap i{
+  text-shadow:0 0 2px rgba(0,0,0,.96),0 1px 1px rgba(0,0,0,.96),
+    1px 0 1px rgba(0,0,0,.85),-1px 0 1px rgba(0,0,0,.85),0 -1px 1px rgba(0,0,0,.85),
+    0 2px 10px rgba(0,0,0,.75)}
+/* The ellipsis has to live on <b>/<i>, not on .cap: text-overflow acts on an
+   element's own inline overflow, and .cap's text is inside these blocks. With
+   it only on .cap a long name was hard-clipped mid-glyph with nothing to show
+   it had been cut — which the correct, narrower cell makes far more likely. */
+.cell .cap b,.cell .cap i{display:block;max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cell .cap b{font-weight:600;color:#fff}
+.cell .cap i{font-style:normal;font-variant-numeric:tabular-nums;color:#e6ecf5;font-size:.9em}
+.cell[aria-current="true"] .cap b{color:var(--gold)}
+.cell[aria-current="true"] .cap i{color:#ffeaa8}
+.cell.dim{opacity:.42}
+
+/* ---------- options menu ---------- */
+.menu{position:absolute;right:6%;top:34%;display:flex;flex-direction:column;
+  align-items:flex-end;gap:.1em}
+.menu button{background:none;border:0;padding:.05em .1em;cursor:pointer;color:#e2e2de;
+  font:inherit;font-size:clamp(19px,2.5vw,36px);font-weight:600;line-height:1.25;
+  text-shadow:0 2px 3px rgba(0,0,0,.6)}
+.menu button[aria-current="true"]{color:var(--sky)}
+.menu .ask{color:#fff;font-size:clamp(13px,1.5vw,21px);font-weight:400;margin-bottom:.35em}
+
+/* ---------- copy destination picker ----------
+   The console's layout: the action in gold, an arrow down to the card you are
+   copying to, its free space beneath, chevrons either side. It sits where the
+   options menu sits, because that is where this app has always put the thing
+   you are choosing from — and the source stays in the header rather than being
+   repeated mid-screen the way the console had to. */
+.menu.copyto{align-items:center;right:6%;left:auto;width:min(46%,560px);
+  text-align:center;gap:0}
+.ct-act{color:var(--gold);font-weight:700;line-height:1.15;
+  font-size:clamp(19px,2.5vw,36px);text-shadow:0 2px 3px rgba(0,0,0,.6)}
+.ct-act .ct-to{color:#fff;margin:0 .25em;font-weight:400}
+.ct-arrow{color:#e2e2de;opacity:.8;font-size:clamp(14px,1.7vw,24px);line-height:1.1;
+  margin:.1em 0}
+.ct-pick{display:flex;align-items:center;justify-content:center;
+  gap:clamp(8px,1.4vw,22px);width:100%}
+.ct-chev{background:none;border:0;padding:0 .1em;cursor:pointer;color:#cfe9ff;
+  font:inherit;font-size:clamp(15px,1.9vw,27px);line-height:1;
+  text-shadow:0 2px 3px rgba(0,0,0,.6);transition:color .14s,transform .14s}
+.ct-chev:hover{color:#fff;transform:scale(1.18)}
+.ct-chev:disabled{opacity:.2;cursor:default;transform:none}
+.ct-dest{color:var(--sky);font-weight:700;line-height:1.15;
+  font-size:clamp(17px,2.2vw,33px);overflow-wrap:anywhere}
+.ct-dest small{font-size:.62em;font-weight:600;letter-spacing:.04em;opacity:.9}
+.ct-free{color:#fff;font-weight:600;font-variant-numeric:tabular-nums;
+  font-size:clamp(12px,1.35vw,19px);margin-top:.3em;opacity:.94}
+/* it will not fit, and finding that out only after choosing is worse */
+.ct-free.tight{color:var(--rose)}
+/* the path being chosen, and the one that will be created */
+.ct-path{color:var(--sky);font-weight:600;line-height:1.2;margin:.15em 0 .35em;
+  font-size:clamp(13px,1.6vw,23px);overflow-wrap:anywhere;
+  font-variant-numeric:tabular-nums}
+/* The folder list scrolls, with a scrollbar you can actually grab. Its height
+   is seven whole rows expressed in em from its own font size — the earlier
+   fixed pixel height was not a multiple of the row height, which is what left
+   a row sliced in half at the bottom. */
+.ct-list{list-style:none;margin:0;padding:0;width:100%;
+  font-size:clamp(13px,1.55vw,22px);
+  /* content-box, so the em height IS seven rows: the global border-box rule
+     was subtracting the two 1px borders and clipping the seventh */
+  box-sizing:content-box;
+  height:calc(1.62em * 7);overflow-y:auto;overflow-x:hidden;
+  scrollbar-gutter:stable;
+  border-top:1px solid rgba(255,255,255,.14);
+  border-bottom:1px solid rgba(255,255,255,.14)}
+.ct-list::-webkit-scrollbar{width:10px}
+.ct-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);border-radius:99px}
+.ct-list::-webkit-scrollbar-thumb:hover{background:rgba(160,205,255,.55)}
+.ct-list::-webkit-scrollbar-track{background:rgba(0,0,0,.16)}
+.ct-list li{margin:0;height:1.62em}
+.ct-list button{display:block;width:100%;height:100%;background:none;border:0;
+  cursor:pointer;padding:0 .5em;color:#e2e2de;font:inherit;font-weight:600;
+  line-height:1.62em;text-align:center;text-shadow:0 2px 3px rgba(0,0,0,.6);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* the row under the pointer lights, but does NOT become the selection */
+.ct-list button:hover{background:rgba(255,255,255,.07);color:#fff}
+.ct-list button[aria-current="true"]{color:var(--gold);background:rgba(120,180,255,.16)}
+.ct-note{color:#9fb0c4;font-weight:600;line-height:1.62em;text-align:center}
+/* when the name has to change because one is already there */
+.ct-renamed{color:var(--gold);font-weight:600;opacity:.92;margin-top:.3em;
+  font-size:clamp(11px,1.15vw,16px);max-width:32ch;margin-left:auto;margin-right:auto}
+.menu.copyto .ask{margin-top:.45em}
+.yesno{display:flex;justify-content:center;gap:clamp(18px,3vw,48px);margin-top:.1em}
+.yesno button{background:none;border:0;padding:.05em .2em;cursor:pointer;color:#e2e2de;
+  font:inherit;font-weight:600;line-height:1.25;font-size:clamp(19px,2.5vw,36px);
+  text-shadow:0 2px 3px rgba(0,0,0,.6)}
+.yesno button[aria-current="true"]{color:var(--sky)}
+/* the console's one-line instruction, sat above the key bar */
+.ct-msg{position:absolute;left:0;right:0;bottom:13%;text-align:center;
+  color:#e8eef8;font-weight:600;pointer-events:none;
+  font-size:clamp(13px,1.6vw,23px);
+  text-shadow:0 0 3px #000,0 2px 3px #000,0 0 18px rgba(0,0,0,.9)}
+
+/* ---------- details ---------- */
+.info{position:absolute;inset:0;display:grid;place-content:center;padding:0 8%}
+.info-title{display:grid;grid-template-columns:auto 1fr;gap:clamp(12px,2vw,28px);
+  align-items:center;margin-bottom:clamp(12px,2.2vw,28px)}
+.info-title .thumb{width:clamp(28px,3.4vw,48px);height:clamp(38px,4.6vw,64px);border-radius:2px;
+  background:linear-gradient(160deg,#5a5a5a,#1e1e1e);box-shadow:inset 0 1px 0 rgba(255,255,255,.22);
+  background-size:cover;background-position:center}
+/* the real shell icon, when this folder has a distinctive one */
+.info-title .thumb.icon{background-color:rgba(0,0,0,.28);background-size:contain;
+  background-repeat:no-repeat;box-shadow:none}
+.info-title h4{margin:0;color:var(--gold);font-weight:600;line-height:1.1;
+  font-size:clamp(18px,2.6vw,36px)}
+.info dl{margin:0;display:grid;grid-template-columns:auto 1fr;
+  gap:clamp(4px,.7vw,10px) clamp(14px,2.4vw,32px);font-size:clamp(12px,1.6vw,23px)}
+.info dt{text-align:right;color:#c9c9c4}
+.info dd{margin:0;color:#fff;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+
+/* ---------- boot ---------- */
+.boot{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;color:#fff}
+/* centred, bold, with the dark rim the console's title carries so it holds
+   against bright blocks passing behind it */
+.boot-name{font-size:clamp(20px,3.0vw,44px);font-weight:600;letter-spacing:.06em;
+  text-shadow:0 0 18px rgba(0,0,0,.95),0 2px 6px rgba(0,0,0,1),0 0 42px rgba(120,170,255,.35)}
+.boot-sub{font-size:clamp(11px,1.2vw,17px);color:#a8bcd8;margin-top:1.1em;letter-spacing:.05em;
+  text-shadow:0 2px 6px rgba(0,0,0,.95)}
+.boot-sub b{color:#eaf2ff;font-weight:600}
+.boot-count{font-family:var(--mono);font-size:clamp(12px,1.3vw,19px);color:var(--sky);
+  margin-top:.3em;font-variant-numeric:tabular-nums}
+.boot-empty{position:absolute;top:46%;left:0;right:0;font-size:clamp(12px,1.4vw,20px);
+  letter-spacing:.34em;color:#4a5a72}
+
+/* ---------- main menu ---------- */
+.menu-items{position:absolute;left:52%;top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:.15em;align-items:flex-start}
+.menu-items button{background:none;border:0;padding:.02em .12em;cursor:pointer;font:inherit;
+  font-weight:500;line-height:1.22;color:#7fa8d8;font-size:clamp(22px,3.1vw,46px);
+  text-shadow:0 0 22px rgba(60,130,220,.35),0 2px 4px rgba(0,0,0,.8);
+  transition:color .16s,text-shadow .16s}
+.menu-items button[aria-current="true"]{color:#fff;
+  text-shadow:0 0 26px rgba(150,200,255,.7),0 2px 4px rgba(0,0,0,.8)}
+.menu-items button:nth-child(2){margin-left:-1.1em}
+
+/* ---------- system configuration: the console's own layout ---------- */
+.cfg-clock{position:absolute;top:2.4%;left:3%;right:3%;display:flex;
+  justify-content:space-between;font-size:clamp(13px,1.5vw,21px);color:#e7e3f5;
+  font-variant-numeric:tabular-nums;pointer-events:none}
+/* The build, bottom-left: present if you look for it, invisible if you don't.
+   The footer keycaps are centred, so this corner is free. */
+.cfg-version{position:absolute;left:3%;bottom:3.4%;pointer-events:none;
+  color:#b9b2d6;opacity:.5;font-weight:600;letter-spacing:.06em;
+  font-size:clamp(10px,1vw,14px);font-variant-numeric:tabular-nums}
+.cfg{position:absolute;right:6%;top:50%;transform:translateY(-50%);
+  width:min(58%,720px);text-align:right}
+.cfg h2{margin:0 0 .55em;color:var(--gold);font-weight:700;
+  font-size:clamp(20px,3.1vw,44px);letter-spacing:.005em}
+.cfg-row-live{display:flex;align-items:center;justify-content:flex-end;
+  gap:clamp(10px,1.6vw,26px);padding:.35em .5em;border-radius:5px;
+  transition:background .14s}
+.cfg-row-live:hover{background:rgba(120,180,255,.10)}
+.cfg-name{color:#5fd8ff;font-weight:700;font-size:clamp(18px,2.7vw,38px);line-height:1.15}
+.cfg-val{color:#fff;font-weight:600;font-size:clamp(15px,2.1vw,30px);margin-top:.12em}
+.cfg-desc{color:#b9b2d6;font-size:clamp(11px,1.15vw,16px);font-weight:400;
+  margin-top:.5em;max-width:34ch;margin-left:auto}
+.cfg-updown{display:flex;flex-direction:column;gap:.1em;color:#cfe9ff;
+  font-size:clamp(13px,1.5vw,20px);line-height:.9}
+.cfg-updown .off{opacity:.22}
+.cfg-updown span:hover{color:#fff;text-shadow:0 0 10px rgba(120,200,255,.9)}
+.cfg-dots i{transition:background .14s,transform .14s}
+.cfg-dots i:hover{background:rgba(120,200,255,.75);transform:scale(1.35)}
+.cfg-dots{display:flex;justify-content:flex-end;gap:7px;margin-top:clamp(12px,1.8vw,22px)}
+.cfg-dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.22)}
+.cfg-dots i.on{background:#5fd8ff;box-shadow:0 0 10px rgba(95,216,255,.9)}
+
+/* ---------- old list styles, kept for the help sheet ---------- */
+
+.config > *{ width:100%; max-width:820px }
+.config::-webkit-scrollbar{ width:10px }
+.config::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.18); border-radius:99px }
+.config::-webkit-scrollbar-track{ background:transparent }
+.config h2{margin:0 0 .7em;color:var(--gold);font-weight:600;font-size:clamp(20px,2.6vw,34px)}
+.cfg-row{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;
+  padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.10);cursor:pointer;
+  background:none;border-left:0;border-right:0;border-top:0;color:#fff;font:inherit;text-align:left}
+.cfg-row:last-of-type{border-bottom:0;margin-bottom:18px}
+.cfg-row[aria-current="true"]{background:rgba(111,208,255,.12)}
+.cfg-row .k{font-size:clamp(13px,1.5vw,20px)}
+.cfg-row .d{display:block;font-size:.72em;color:#9fb0c4;font-weight:400;margin-top:2px}
+.cfg-row .v{font-family:var(--mono);font-size:clamp(12px,1.3vw,17px);color:var(--sky);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+/* rows that do something rather than hold a value */
+.cfg-row .v.go{color:var(--gold)}
+.cfg-row .v.go::after{content:" ▸";opacity:.75}
+.cfg-row:disabled{cursor:default;opacity:.9}
+
+/* ---------- keyboard sheet (F1) ---------- */
+.help{position:absolute;inset:0;z-index:4;display:grid;place-items:center;
+  background:rgba(3,6,12,.72);pointer-events:auto;padding:4% 6%}
+.help-panel{width:min(560px,92%);max-height:100%;overflow:auto;
+  background:rgba(10,14,21,.96);border:1px solid rgba(255,255,255,.16);border-radius:4px;
+  padding:clamp(16px,2.2vw,26px) clamp(18px,2.6vw,30px) clamp(10px,1.4vw,16px);
+  box-shadow:0 18px 60px rgba(0,0,0,.6)}
+.help-panel h3{margin:0 0 .6em;color:var(--gold);font-size:clamp(15px,1.8vw,22px);font-weight:600}
+.help-panel section{margin-bottom:.9em}
+.help-panel h4{margin:0 0 .35em;font-size:clamp(10px,1vw,12px);font-weight:600;
+  letter-spacing:.2em;text-transform:uppercase;color:#8fa3bd}
+.krow{display:flex;align-items:center;gap:.7em;padding:.28em 0;
+  font-size:clamp(12px,1.25vw,16px);font-weight:600;
+  border-bottom:1px solid rgba(255,255,255,.06)}
+.krow:last-child{border-bottom:0}
+.krow .keys{min-width:9.5em}
+.help .foot-in{position:static;justify-content:flex-end;margin-top:.4em;
+  font-size:clamp(11px,1.15vw,15px)}
+
+/* ---------- toast ---------- */
+.toast{position:fixed;left:50%;bottom:11%;transform:translateX(-50%) translateY(8px);
+  z-index:3;background:rgba(12,16,22,.92);border:1px solid rgba(255,255,255,.18);
+  color:#fff;padding:10px 18px;border-radius:3px;font-size:14px;pointer-events:none;
+  opacity:0;transition:opacity .18s,transform .18s;max-width:70vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{border-color:rgba(255,122,134,.6);color:#ffd7db}
+
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}
+  .deleting{animation:none;opacity:1}}

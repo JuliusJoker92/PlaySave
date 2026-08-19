@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>PlaySave</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="stage" aria-hidden="true"></canvas>
+  <div id="titlebar" data-tauri-drag-region>
+    <span class="tb-name" id="tbName" data-tauri-drag-region>PlaySave</span>
+    <div class="tb-btns">
+      <button id="tbMin" aria-label="Minimise" tabindex="-1">&#x2013;</button>
+      <button id="tbMax" aria-label="Maximise" tabindex="-1">&#x25A2;</button>
+      <button id="tbClose" aria-label="Close" tabindex="-1">&#x2715;</button>
+    </div>
+  </div>
+  <div id="osd" class="osd"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

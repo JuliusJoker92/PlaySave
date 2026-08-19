@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Exactly the core APIs the frontend already calls. The window is decorations:false, so dragging, minimise, maximise and close all go through core:window; F11 toggles fullscreen; the boot screen listens for the scan-progress event the backend emits. Application commands (list_volumes, scan_children, ...) are not listed: app-defined commands are not gated by the ACL.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": [
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-is-fullscreen",
+    "core:window:allow-set-fullscreen",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

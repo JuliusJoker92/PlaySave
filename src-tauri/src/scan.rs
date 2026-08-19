@@ -71,6 +71,22 @@ pub(crate) fn long(path: &str) -> PathBuf {
     }
 }
 
+/// The inverse of `long`: a path as the interface knows it.
+///
+/// This existed as `.replace("\\?\\", "")`, which is the THREE-character
+/// sequence `\?\` — so `\\?\E:\x` lost characters 2..4 and came back as
+/// `\E:\x`, with a leading separator. Every measured size the walk emitted
+/// therefore carried a path the front end could not match against the row it
+/// belonged to, the event was dropped, and the row sat on "measuring…" until
+/// the whole scan finished and replaced the listing wholesale.
+pub(crate) fn plain(p: &Path) -> String {
+    let s = p.to_string_lossy().into_owned();
+    match s.strip_prefix(r"\\?\") {
+        Some(rest) => rest.to_string(),
+        None => s,
+    }
+}
+
 /// One subtree as the recursion builds it, before it is flattened into the
 /// arena. Names only — no `PathBuf` per node, which is what keeps this from
 /// costing several hundred bytes an entry.
@@ -246,7 +262,7 @@ pub fn walk_root(path: &str, app: Option<&tauri::AppHandle>) -> Result<Tree, Str
             if let Some(h) = app {
                 let _ = h.emit("scan-progress", Progress {
                     name: name.to_string(),
-                    path: e.path().to_string_lossy().replace("\\?\\", ""),
+                    path: plain(&e.path()),
                     is_dir: md.is_dir(),
                     modified_ms: ms_of(&md),
                     item_count: 0,
@@ -285,7 +301,7 @@ pub fn walk_root(path: &str, app: Option<&tauri::AppHandle>) -> Result<Tree, Str
                     "scan-progress",
                     Progress {
                         name: raw.name.to_string(),
-                        path: e.path().to_string_lossy().replace("\\?\\", ""),
+                        path: plain(&e.path()),
                         is_dir: raw.is_dir,
                         modified_ms: raw.mtime,
                         item_count: raw.files as u64 + raw.dirs as u64,

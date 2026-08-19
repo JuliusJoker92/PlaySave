@@ -1,6 +1,6 @@
 {
   "name": "playsave",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A disk-usage analyser that presents your drives as PS2 memory cards.",
   "type": "module",
   "license": "GPL-3.0-or-later",

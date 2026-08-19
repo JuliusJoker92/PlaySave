@@ -69,9 +69,9 @@ the application.
 
 Download from the [Releases](../../releases) page:
 
-- **`PlaySave_1.0.0_x64_en-US.msi`** — the installer. Double-click, and it lands in your Start
+- **`PlaySave_1.0.1_x64_en-US.msi`** — the installer. Double-click, and it lands in your Start
   menu like any other program.
-- **`PlaySave-1.0.0-portable.exe`** — a single file, no installation. Put it wherever you like
+- **`PlaySave-1.0.1-portable.exe`** — a single file, no installation. Put it wherever you like
   and run it.
 
 Windows will warn you that the publisher is unknown, because the build is not code-signed —

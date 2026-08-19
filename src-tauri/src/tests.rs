@@ -282,3 +282,30 @@ fn the_extension_split_handles_the_awkward_names() {
     assert_eq!(crate::split_ext(".gitignore"), (".gitignore", ""));
     assert_eq!(crate::split_ext("README"), ("README", ""));
 }
+
+/// The walk runs on the `\\?\` long-path form; the front end matches rows by
+/// the plain path the announcer sent. If the two disagree by so much as a
+/// leading separator, every measured size is silently dropped and every row
+/// sits on "measuring..." until the scan finishes and replaces the listing.
+///
+/// That is exactly what `.replace("\\?\\", "")` did: that literal is the THREE
+/// characters backslash-question-backslash, one short of the four-character
+/// prefix, so it left the path starting with a stray separator.
+#[test]
+fn the_walk_and_the_announcer_agree_on_a_path() {
+    use crate::scan::plain;
+    use std::path::Path;
+
+    assert_eq!(plain(Path::new(r"\\?\E:\mono.msi")), r"E:\mono.msi");
+    assert_eq!(plain(Path::new(r"\\?\E:\dir\file.txt")), r"E:\dir\file.txt");
+    // a path that never had the prefix is returned untouched
+    assert_eq!(plain(Path::new(r"E:\mono.msi")), r"E:\mono.msi");
+    assert_eq!(plain(Path::new(r"E:\")), r"E:\");
+
+    // the old expression, kept as a guard: it left a leading separator, so the
+    // parent derived from it ("\E:") could never equal the folder being
+    // scanned ("E:")
+    let broken = r"\\?\E:\mono.msi".replace(r"\?\", "");
+    assert_eq!(broken, r"\E:\mono.msi");
+    assert_ne!(broken, plain(Path::new(r"\\?\E:\mono.msi")));
+}

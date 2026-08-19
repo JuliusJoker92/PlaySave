@@ -427,14 +427,18 @@ fn announce_children(app: &tauri::AppHandle, path: &str) {
             "scan-progress",
             tree::Progress {
                 name: e.file_name().to_string_lossy().to_string(),
-                path: e.path().to_string_lossy().replace("\\?\\", ""),
+                path: scan::plain(&e.path()),
                 is_dir: md.is_dir(),
                 modified_ms: 0,
                 item_count: 0,
                 size_bytes: if md.is_dir() { 0 } else { md.len() },
                 done: 0,
                 total,
-                pending: true,
+                // A file's length is already final here — nothing later will
+                // measure it — so only a directory is genuinely still pending.
+                // Marking files pending made every one of them sit on
+                // "measuring…" while displaying a size it already knew.
+                pending: md.is_dir(),
             },
         );
     }

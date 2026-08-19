@@ -1828,15 +1828,25 @@ if(P.IS_APP && window.__TAURI__?.event?.listen){
       return x.slice(0, i).toLowerCase(); };
     const parent = p.path.slice(0, Math.max(0, p.path.lastIndexOf("\\")));
     if(norm(parent) !== norm(S.scanning)) return;
-    S.scanSeen = p.done || S.scanSeen + 1;
+    /* Only a real measurement advances the counter. The announcer emits every
+       child with done:0 the instant it is listed, and `p.done || seen+1` read
+       that as one more measured item — so a folder that had merely been listed
+       reported "65 / 65 measured" while every row still said measuring. The
+       header was describing the listing, not the work. */
+    if(!p.pending) S.scanSeen = p.done || S.scanSeen + 1;
     S.scanTotal = p.total || 0;
     const at = S.entries.findIndex(x => x.path === p.path);
     if(at >= 0){
-      // the measured figure for a row already on screen
-      const e = S.entries[at];
-      e.sizeBytes = p.sizeBytes || 0;
-      e.itemCount = p.itemCount || 0;
-      e.pending = false;
+      /* Only a measurement updates a row that is already on screen. The walk
+         re-announces each item before it starts measuring it, and that message
+         carries no size — taking it at face value wiped the length a file
+         already had and declared the row finished before any work was done. */
+      if(!p.pending){
+        const e = S.entries[at];
+        e.sizeBytes = p.sizeBytes || 0;
+        e.itemCount = p.itemCount || 0;
+        e.pending = false;
+      }
     } else {
       const e = { name:p.name, path:p.path, isDir:!!p.isDir, sizeBytes:p.sizeBytes||0,
                   modifiedMs:p.modifiedMs||0, ext:"", itemCount:p.itemCount||0,
